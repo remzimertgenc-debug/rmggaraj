@@ -119,6 +119,15 @@ export function Footer({
                   Bilgisayar Topla
                 </button>
               </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onNavigate('advisor')}
+                  className="cursor-pointer transition-colors hover:text-[#FF7900]"
+                >
+                  Sistem Öner &amp; FPS
+                </button>
+              </li>
             </ul>
           </div>
 

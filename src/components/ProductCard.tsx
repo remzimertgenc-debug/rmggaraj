@@ -32,8 +32,8 @@ export function ProductCard({
         />
       </button>
 
-      <div className="flex flex-1 flex-col justify-between gap-6 p-6 sm:p-7">
-        <h3 className="font-display text-lg font-bold leading-snug text-slate-50">
+      <div className="flex flex-1 flex-col justify-between gap-3 p-3 sm:gap-6 sm:p-6">
+        <h3 className="font-display text-xs font-bold leading-snug text-slate-50 sm:text-lg">
           <button
             type="button"
             onClick={() => onInspect(product.category, product.id)}
@@ -43,18 +43,18 @@ export function ProductCard({
           </button>
         </h3>
 
-        <div className="space-y-4">
-          <span className="block font-mono text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums text-[#FF7900]">
+        <div className="space-y-2.5 sm:space-y-4">
+          <span className="block font-mono text-base font-extrabold tracking-tight tabular-nums text-[#FF7900] sm:text-2xl lg:text-3xl">
             {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
           </span>
 
           <button
             type="button"
             onClick={() => onInspect(product.category, product.id)}
-            className="flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8C24]"
+            className="flex min-h-[36px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#FF7900] px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] sm:min-h-[46px] sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
           >
-            <span>Ürünü İncele</span>
-            <ArrowRight className="h-4 w-4 shrink-0" />
+            <span>İncele</span>
+            <ArrowRight className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
           </button>
         </div>
       </div>

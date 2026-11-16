@@ -730,31 +730,31 @@ export function PartDetailPage({
             </p>
           </div>
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 md:grid-cols-3">
             {matchedBuilds.slice(0, 3).map((b) => (
               <button
                 key={b.id}
                 type="button"
                 onClick={() => onInspectBuild(b)}
-                className="flex cursor-pointer flex-col justify-between rounded-xl border border-slate-800 bg-[#111827] p-5 text-left transition-colors hover:border-[#246BFD]"
+                className="flex cursor-pointer flex-col justify-between rounded-xl border border-slate-800 bg-[#111827] p-3 text-left transition-colors hover:border-[#246BFD] sm:p-5"
               >
                 <div>
-                  <span className="text-xs font-medium text-[#246BFD]">
+                  <span className="text-[10px] font-medium text-[#246BFD] sm:text-xs">
                     {b.tierTitle} · {b.targetResolution.toUpperCase()}
                   </span>
-                  <h3 className="mt-1 font-display text-lg font-bold text-[#F5F7FA]">
+                  <h3 className="mt-1 line-clamp-2 font-display text-xs font-bold text-[#F5F7FA] sm:text-lg">
                     {b.systemName}
                   </h3>
-                  <p className="mt-1 text-xs text-[#94A3B8]">
+                  <p className="mt-1 line-clamp-2 text-[11px] text-[#94A3B8] sm:text-xs">
                     {b.cpu.model} · {b.gpu.model}
                   </p>
                 </div>
-                <div className="mt-4 flex items-baseline justify-between border-t border-slate-800 pt-3">
-                  <span className="font-mono text-lg font-bold text-[#FF7900] tabular-nums">
+                <div className="mt-3 flex flex-col gap-1 border-t border-slate-800 pt-2.5 sm:mt-4 sm:flex-row sm:items-baseline sm:justify-between sm:pt-3">
+                  <span className="font-mono text-sm font-bold text-[#FF7900] tabular-nums sm:text-lg">
                     {formatTry(b.samplePriceTry)}
                   </span>
-                  <span className="text-xs font-semibold text-[#246BFD]">
-                    Sistemi İncele →
+                  <span className="text-[11px] font-semibold text-[#246BFD] sm:text-xs">
+                    İncele →
                   </span>
                 </div>
               </button>

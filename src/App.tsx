@@ -8,6 +8,7 @@ import { HomePage } from './components/HomePage';
 import { LegalPage } from './components/LegalPage';
 import { Navbar } from './components/Navbar';
 import { PartDetailPage } from './components/PartDetailPage';
+import { SmartAdvisorPage } from './components/SmartAdvisorPage';
 import { SystemDetailPage } from './components/SystemDetailPage';
 import { SystemsPage } from './components/SystemsPage';
 import { generateSampleBuilds } from './data/builds';
@@ -39,6 +40,7 @@ const HASH_TO_PAGE: Record<string, PageId> = {
   '#hazir-sistemler': 'systems',
   '#prebuilt-systems': 'systems',
   '#bilgisayar-topla': 'builder',
+  '#akilli-sistem-onerici': 'advisor',
   '#ekran-kartlari': 'gpus',
   '#islemciler': 'cpus',
   '#donanim-kategorisi': 'catalog',
@@ -54,6 +56,7 @@ const PAGE_TO_HASH: Record<PageId, string> = {
   home: '#ana-sayfa',
   systems: '#hazir-sistemler',
   builder: '#bilgisayar-topla',
+  advisor: '#akilli-sistem-onerici',
   gpus: '#ekran-kartlari',
   cpus: '#islemciler',
   catalog: '#donanim-kategorisi',
@@ -69,6 +72,7 @@ const BACK_PAGE_LABELS: Record<PageId, string> = {
   home: 'Ana Sayfaya Dön',
   systems: 'Hazır Sistemlere Dön',
   builder: 'Bilgisayar Toplama Sayfasına Dön',
+  advisor: 'Sistem Önericiye Dön',
   gpus: 'Ekran Kartlarına Dön',
   cpus: 'İşlemcilere Dön',
   catalog: 'Kategori Listesine Dön',
@@ -378,6 +382,22 @@ export default function App() {
             }}
             onInspectBuild={handleOpenSystemDetail}
             onInspectPart={handleInspectPart}
+            onOpenAdvisor={() => navigateTo('advisor')}
+          />
+        )}
+
+        {currentPage === 'advisor' && (
+          <SmartAdvisorPage
+            initialPreferences={preferences}
+            pricingCatalog={pricingCatalog}
+            pricingLoading={pricingLoading}
+            pricingError={pricingError}
+            onRetryPricing={loadPricingCatalog}
+            onUpdatePreferences={setPreferences}
+            onInspectBuild={handleOpenSystemDetail}
+            onCustomizeBuild={handleCustomizeBuild}
+            onInspectPart={handleInspectPart}
+            onOpenManualBuilder={() => navigateTo('builder')}
           />
         )}
 

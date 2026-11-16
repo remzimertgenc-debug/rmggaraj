@@ -250,7 +250,7 @@ export function CatalogProductSection({
       {/* Product Grid or List */}
       {items.length > 0 ? (
         viewMode === 'grid' ? (
-          <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 xl:grid-cols-3">
             {visibleItems.map((item) => {
               const pricing = pricingCatalog?.partsPricing[item.id];
               const activePrice = pricing?.newPriceTry ?? 0;
@@ -278,12 +278,12 @@ export function CatalogProductSection({
                     />
                   </button>
 
-                  <div className="flex flex-1 flex-col p-5">
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  <div className="flex flex-1 flex-col p-3 sm:p-5">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wider text-slate-400 sm:text-[11px]">
                       {item.brand} · {CATEGORY_LABELS[item.category]}
                     </p>
 
-                    <h2 className="mt-1.5 font-display text-[15px] font-bold leading-snug text-slate-50">
+                    <h2 className="mt-1 font-display text-xs font-bold leading-snug text-slate-50 sm:mt-1.5 sm:text-[15px]">
                       <button
                         type="button"
                         onClick={() => onInspectPart(item.category, item.id)}
@@ -293,29 +293,32 @@ export function CatalogProductSection({
                       </button>
                     </h2>
 
-                    <p className="mt-2 truncate text-xs text-slate-400" title={item.specSummary}>
+                    <p
+                      className="mt-1.5 hidden truncate text-xs text-slate-400 sm:mt-2 sm:block"
+                      title={item.specSummary}
+                    >
                       {item.specSummary}
                     </p>
 
-                    <div className="mt-auto pt-4">
-                      <div className="border-t border-slate-700/60 pt-3.5">
-                        <p className="text-[11px] text-slate-400">
+                    <div className="mt-auto pt-2.5 sm:pt-4">
+                      <div className="border-t border-slate-700/60 pt-2.5 sm:pt-3.5">
+                        <p className="truncate text-[10px] text-slate-400 sm:text-[11px]">
                           {storeCount > 0 && topStore
-                            ? `${storeCount} mağazada · En uygun ${topStore}`
-                            : 'Sıfır (kapalı kutu) piyasa fiyatı'}
+                            ? `${storeCount} mağaza · ${topStore}`
+                            : 'Sıfır (kapalı kutu)'}
                         </p>
-                        <span className="mt-0.5 block font-mono text-2xl font-extrabold tracking-tight tabular-nums text-[#FF7900]">
+                        <span className="mt-0.5 block font-mono text-base font-extrabold tracking-tight tabular-nums text-[#FF7900] sm:text-2xl">
                           {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
                         </span>
                       </div>
 
-                      <div className="mt-3.5 flex items-center gap-2">
+                      <div className="mt-2.5 flex flex-col gap-1.5 sm:mt-3.5 sm:flex-row sm:items-center sm:gap-2">
                         <button
                           type="button"
                           onClick={() => onInspectPart(item.category, item.id)}
-                          className="flex min-h-[42px] flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-[#FF7900] px-3.5 py-2 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] whitespace-nowrap"
+                          className="flex min-h-[36px] flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg bg-[#FF7900] px-2.5 py-1.5 text-[11px] font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] whitespace-nowrap sm:min-h-[42px] sm:gap-1.5 sm:px-3.5 sm:py-2 sm:text-xs"
                         >
-                          <span>Ürünü İncele</span>
+                          <span>İncele</span>
                           <ArrowRight className="h-3.5 w-3.5 shrink-0" />
                         </button>
                         {onAddToBuild && (
@@ -324,7 +327,7 @@ export function CatalogProductSection({
                             onClick={() => onAddToBuild(item.id)}
                             title="Sistem Sihirbazına Ekle"
                             aria-label={`${item.model} parçasını Sistem Sihirbazına ekle`}
-                            className="inline-flex min-h-[42px] shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors hover:border-[#FF7900] hover:text-[#FF7900] whitespace-nowrap"
+                            className="inline-flex min-h-[34px] shrink-0 cursor-pointer items-center justify-center gap-1 rounded-lg border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-[11px] font-semibold text-slate-200 transition-colors hover:border-[#FF7900] hover:text-[#FF7900] whitespace-nowrap sm:min-h-[42px] sm:px-3 sm:py-2 sm:text-xs"
                           >
                             <Plus className="h-3.5 w-3.5" />
                             <span>Topla</span>

@@ -347,21 +347,21 @@ export function SystemDetailPage({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
           {specs.map((spec) => {
             const isExpanded = Boolean(expandedPartIds[spec.category]);
             return (
               <div
                 key={spec.category}
-                className="rounded-xl border border-slate-800 bg-[#111827] p-5"
+                className="flex flex-col justify-between rounded-xl border border-slate-800 bg-[#111827] p-3 sm:p-5"
               >
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start sm:gap-4">
                   <button
                     type="button"
                     onClick={() => onInspectPart(spec.category, spec.partId)}
-                    className="flex cursor-pointer items-start gap-3 text-left group"
+                    className="flex cursor-pointer flex-col items-start gap-2 text-left group sm:flex-row sm:gap-3"
                   >
-                    <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-[#080B12]">
+                    <div className="h-20 w-full shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-[#080B12] sm:h-14 sm:w-16">
                       <ProductImage
                         compact
                         imageUrl={pricingCatalog?.productImages?.[spec.partId]}
@@ -369,30 +369,30 @@ export function SystemDetailPage({
                         model={spec.model}
                       />
                     </div>
-                    <div>
-                      <span className="block text-xs font-medium text-[#94A3B8]">
+                    <div className="min-w-0">
+                      <span className="block text-[10px] font-medium text-[#94A3B8] sm:text-xs">
                         {spec.label}
                       </span>
-                      <h3 className="mt-0.5 font-display text-base font-bold text-[#F5F7FA] transition-colors group-hover:text-[#246BFD]">
+                      <h3 className="mt-0.5 line-clamp-2 font-display text-xs font-bold leading-snug text-[#F5F7FA] transition-colors group-hover:text-[#246BFD] sm:text-base">
                         {spec.model}
                       </h3>
                     </div>
                   </button>
 
-                  <span className="font-mono text-base font-bold tabular-nums text-[#FF7900] shrink-0">
+                  <span className="font-mono text-sm font-bold tabular-nums text-[#FF7900] shrink-0 sm:text-base">
                     {spec.priceTry === 0 ? 'Dahili' : formatTry(spec.priceTry)}
                   </span>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80 pt-3">
-                  <div className="flex items-center gap-4">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2.5 sm:mt-4 sm:gap-3 sm:pt-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                     <button
                       type="button"
                       onClick={() => togglePartSpecs(spec.category)}
-                      className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#246BFD] hover:underline"
+                      className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-[#246BFD] hover:underline sm:gap-1.5 sm:text-xs"
                     >
                       <span>
-                        {isExpanded ? 'Teknik Özellikleri Gizle' : 'Teknik Özellikleri Gör'}
+                        {isExpanded ? 'Gizle' : 'Özellikler'}
                       </span>
                       {isExpanded ? (
                         <ChevronUp className="h-3.5 w-3.5" />
@@ -404,9 +404,9 @@ export function SystemDetailPage({
                     <button
                       type="button"
                       onClick={() => onInspectPart(spec.category, spec.partId)}
-                      className="cursor-pointer text-xs font-semibold text-[#F5F7FA] hover:text-[#FF7900]"
+                      className="cursor-pointer text-[11px] font-semibold text-[#F5F7FA] hover:text-[#FF7900] sm:text-xs"
                     >
-                      Ürün Sayfası →
+                      İncele →
                     </button>
                   </div>
                 </div>

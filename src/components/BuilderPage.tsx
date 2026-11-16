@@ -1070,16 +1070,16 @@ export function BuilderPage({
             )}
 
             {!pricingCatalog ? (
-              <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
                 {[1, 2, 3].map((idx) => (
                   <div
                     key={idx}
-                    className="h-[440px] animate-pulse rounded-xl border border-slate-800 bg-[#111827]"
+                    className="h-[340px] animate-pulse rounded-xl border border-slate-800 bg-[#111827] sm:h-[440px]"
                   />
                 ))}
               </div>
             ) : (
-              <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
                 {sortedCatalogBuilds.map((build) => (
                   <BuildCard
                     key={build.id}
@@ -1504,7 +1504,7 @@ export function BuilderPage({
           </div>
 
           {/* Active Step Component Grid */}
-          <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="mt-5 grid grid-cols-2 gap-2.5 sm:gap-4">
             {visibleItems.map((item) => {
               const isSelected = selectedIds[activeSection.field] === item.id;
               const price = getPartPrice(item.id, pricingCatalog);
@@ -1518,7 +1518,7 @@ export function BuilderPage({
               return (
                 <div
                   key={item.id}
-                  className={`flex flex-col justify-between rounded-xl border p-5 transition-colors ${
+                  className={`flex flex-col justify-between rounded-xl border p-3 transition-colors sm:p-5 ${
                     isSelected
                       ? 'border-[#246BFD] bg-[#111827]'
                       : blocked
@@ -1529,9 +1529,9 @@ export function BuilderPage({
                   }`}
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex min-w-0 items-start gap-3">
-                        <div className="h-14 w-16 shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-[#080B12]">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
+                      <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+                        <div className="h-24 w-full shrink-0 overflow-hidden rounded-lg border border-slate-800 bg-[#080B12] sm:h-14 sm:w-16">
                           <ProductImage
                             compact
                             imageUrl={pricingCatalog?.productImages?.[item.id]}
@@ -1541,26 +1541,26 @@ export function BuilderPage({
                           />
                         </div>
                         <div className="min-w-0">
-                          <span className="block text-xs font-medium text-[#94A3B8]">
+                          <span className="block truncate text-[11px] font-medium text-[#94A3B8] sm:text-xs">
                             {item.brand}
                           </span>
-                          <h3 className="mt-0.5 font-display text-base font-bold text-[#F5F7FA]">
+                          <h3 className="mt-0.5 line-clamp-2 font-display text-xs font-bold leading-snug text-[#F5F7FA] sm:text-base">
                             {item.model}
                           </h3>
                         </div>
                       </div>
                       {isSelected && (
-                        <span className="inline-flex items-center gap-1 rounded bg-[#246BFD] px-2 py-0.5 text-[11px] font-semibold text-[#F5F7FA] shrink-0">
+                        <span className="inline-flex w-fit items-center gap-1 rounded bg-[#246BFD] px-2 py-0.5 text-[10px] font-semibold text-[#F5F7FA] shrink-0 sm:text-[11px]">
                           <Check className="h-3 w-3" />
                           <span>Seçili</span>
                         </span>
                       )}
                     </div>
 
-                    <p className="mt-3 text-xs text-[#94A3B8]">{item.specSummary}</p>
+                    <p className="mt-2 hidden text-xs text-[#94A3B8] sm:mt-3 sm:block">{item.specSummary}</p>
 
-                    <div className="mt-4 flex items-baseline justify-between gap-2">
-                      <span className="font-mono text-xl font-bold tabular-nums text-[#FF7900]">
+                    <div className="mt-2.5 flex flex-col gap-1 sm:mt-4 sm:flex-row sm:items-baseline sm:justify-between sm:gap-2">
+                      <span className="font-mono text-base font-bold tabular-nums text-[#FF7900] sm:text-xl">
                         {price === 0
                           ? item.id === 'gpu-apu-vega7' ||
                             item.id === 'cooler-stock-wraith'
@@ -1569,7 +1569,7 @@ export function BuilderPage({
                           : formatTry(price)}
                       </span>
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         <button
                           type="button"
                           onClick={() =>
@@ -1578,35 +1578,35 @@ export function BuilderPage({
                               [item.id]: !prev[item.id],
                             }))
                           }
-                          className="inline-flex cursor-pointer items-center gap-1 text-xs font-semibold text-[#246BFD] hover:underline"
+                          className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-[#246BFD] hover:underline sm:text-xs"
                         >
                           <span>{techOpen ? 'Gizle' : 'Detay'}</span>
                           {techOpen ? (
-                            <ChevronUp className="h-3.5 w-3.5" />
+                            <ChevronUp className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           ) : (
-                            <ChevronDown className="h-3.5 w-3.5" />
+                            <ChevronDown className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
                           )}
                         </button>
                         {onInspectPart && (
                           <button
                             type="button"
                             onClick={() => onInspectPart(activeCategoryKey, item.id)}
-                            className="cursor-pointer text-xs font-medium text-[#94A3B8] hover:text-[#F5F7FA]"
+                            className="cursor-pointer text-[11px] font-medium text-[#94A3B8] hover:text-[#F5F7FA] sm:text-xs"
                           >
-                            Sayfayı Aç
+                            İncele
                           </button>
                         )}
                       </div>
                     </div>
 
                     {techOpen && (
-                      <div className="mt-3 rounded-lg bg-[#080B12] p-3 text-xs text-[#94A3B8]">
+                      <div className="mt-2.5 rounded-lg bg-[#080B12] p-2.5 text-[11px] text-[#94A3B8] sm:mt-3 sm:p-3 sm:text-xs">
                         <p>{item.specSummary}</p>
                       </div>
                     )}
 
                     {isIncompatible && reason && (
-                      <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-red-500/40 bg-red-950/25 px-3 py-2 text-xs text-red-200">
+                      <p className="mt-2.5 flex items-start gap-1.5 rounded-lg border border-red-500/40 bg-red-950/25 px-2.5 py-1.5 text-[11px] text-red-200 sm:mt-3 sm:px-3 sm:py-2 sm:text-xs">
                         <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-400" />
                         <span>{reason}</span>
                       </p>
@@ -1617,7 +1617,7 @@ export function BuilderPage({
                     type="button"
                     disabled={blocked || isSelected}
                     onClick={() => handleSelectPart(activeSection.field, item.id)}
-                    className={`mt-4 flex min-h-[42px] w-full items-center justify-center rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
+                    className={`mt-3 flex min-h-[36px] w-full items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors sm:mt-4 sm:min-h-[42px] sm:px-4 sm:py-2 sm:text-xs ${
                       isSelected
                         ? 'cursor-default border border-[#246BFD]/50 bg-[#080B12] text-[#246BFD]'
                         : blocked
@@ -1626,10 +1626,10 @@ export function BuilderPage({
                     }`}
                   >
                     {isSelected
-                      ? 'Sistemde Seçili'
+                      ? 'Seçili'
                       : blocked
-                        ? 'Uyumsuz (Seçim Engellendi)'
-                        : 'Bu Parçayı Seç'}
+                        ? 'Uyumsuz'
+                        : 'Parçayı Seç'}
                   </button>
                 </div>
               );

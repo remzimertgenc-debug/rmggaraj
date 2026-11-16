@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, RefreshCw } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Gauge, RefreshCw, SlidersHorizontal } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { generateSampleBuilds } from '../data/builds';
 import { CATEGORY_LABELS } from '../data/partMedia';
@@ -96,6 +96,63 @@ export function HomePage({
         />
       </div>
 
+      {/* 4b. Dual PC Building Modes: Budget+Games FPS Advisor vs Manual Kendin Topla */}
+      <section className="mx-auto max-w-[1320px] px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="flex flex-col justify-between rounded-2xl border border-[#FF7900]/45 bg-slate-800/80 p-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#FF7900]">
+                Bütçe · Amaç · Oyun Seçimi
+              </p>
+              <h2 className="mt-1.5 font-display text-xl font-extrabold text-slate-50">
+                Bütçene &amp; Oyunlarına Göre Sistem Öner (FPS Gör)
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                Bütçeni ve oynayacağın oyunları seç; 10/10 uyumlu önerilen sistemlerde her oyunda
+                kaç FPS alacağını 1080p, 1440p ve 4K olarak gör.
+              </p>
+            </div>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => onNavigate('advisor')}
+                className="inline-flex min-h-[42px] cursor-pointer items-center gap-2 rounded-xl bg-[#FF7900] px-5 py-2.5 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8E29] whitespace-nowrap"
+              >
+                <Gauge className="h-4 w-4 shrink-0" />
+                <span>Sistem Öner ve FPS Hesapla</span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-col justify-between rounded-2xl border border-slate-700/70 bg-slate-800/80 p-6">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-[#60A5FA]">
+                Manuel Parça Sihirbazı
+              </p>
+              <h2 className="mt-1.5 font-display text-xl font-extrabold text-slate-50">
+                Kendin Topla — Parçaları Adım Adım Seç
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                İşlemciden soğutucuya tüm sıfır bileşenleri tek tek seç, soket, DDR tipi, kasa
+                ölçüsü ve PSU kapasitesini gerçek zamanlı kontrol et.
+              </p>
+            </div>
+            <div className="mt-5">
+              <button
+                type="button"
+                onClick={() => onNavigate('builder')}
+                className="inline-flex min-h-[42px] cursor-pointer items-center gap-2 rounded-xl border border-[#246BFD]/60 bg-[#246BFD]/15 px-5 py-2.5 text-xs font-semibold text-slate-100 transition-colors hover:bg-[#246BFD] whitespace-nowrap"
+              >
+                <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                <span>Kendin Topla Sihirbazını Aç</span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* 5. Popular Ready Systems Grid */}
       <section className="mx-auto max-w-[1320px] px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
         <div className="flex flex-col justify-between gap-4 pb-10 sm:flex-row sm:items-end">
@@ -139,16 +196,16 @@ export function HomePage({
         )}
 
         {pricingLoading && !pricingCatalog ? (
-          <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
             {[0, 1, 2].map((idx) => (
               <div
                 key={idx}
-                className="h-[460px] animate-pulse rounded-2xl border border-slate-700/50 bg-slate-800/70"
+                className="h-[340px] animate-pulse rounded-2xl border border-slate-700/50 bg-slate-800/70 sm:h-[460px]"
               />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
             {popularBuilds.map((build) => (
               <BuildCard
                 key={build.id}
@@ -209,7 +266,7 @@ export function HomePage({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6 lg:grid-cols-3">
               {visibleDynamicProducts.map((product) => (
                 <ProductCard
                   key={product.id}

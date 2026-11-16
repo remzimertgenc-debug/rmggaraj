@@ -480,16 +480,16 @@ export function SystemsPage({
 
           {/* 3-Column E-Commerce Product Grid */}
           {pricingLoading && !pricingCatalog ? (
-            <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-6 xl:grid-cols-3">
               {[0, 1, 2, 3, 4, 5].map((idx) => (
                 <div
                   key={idx}
-                  className="h-[500px] animate-pulse rounded-xl border border-slate-800 bg-[#111827]"
+                  className="h-[360px] animate-pulse rounded-xl border border-slate-800 bg-[#111827] sm:h-[500px]"
                 />
               ))}
             </div>
           ) : (
-            <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-6 xl:grid-cols-3">
               {builds.map((build) => (
                 <BuildCard
                   key={build.id}

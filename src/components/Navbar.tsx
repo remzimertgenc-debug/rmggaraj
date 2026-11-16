@@ -4,6 +4,7 @@ import {
   CircuitBoard,
   Cpu,
   Fan,
+  Gauge,
   HardDrive,
   Layers,
   LogIn,
@@ -48,6 +49,7 @@ const NAV_ITEMS: { id: PageId; label: string }[] = [
   { id: 'home', label: 'Ana Sayfa' },
   { id: 'systems', label: 'Hazır Sistemler' },
   { id: 'builder', label: 'Bilgisayar Topla' },
+  { id: 'advisor', label: 'Sistem Öner & FPS' },
   { id: 'gpus', label: 'Ekran Kartları' },
   { id: 'cpus', label: 'İşlemciler' },
 ];
@@ -727,14 +729,25 @@ export function Navbar({
 
           <div className="flex-1 overflow-y-auto px-4 py-5">
             {/* Highlighted PC Builder Wizard CTA */}
-            <button
-              type="button"
-              onClick={() => handleNavClick('builder')}
-              className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#FF7900] px-4 py-3 text-sm font-bold text-[#080B12] shadow-[0_12px_28px_-12px_rgba(255,121,0,0.75)] transition-colors hover:bg-[#FF912E]"
-            >
-              <SlidersHorizontal className="h-4 w-4 shrink-0" />
-              <span className="whitespace-nowrap">Kendin Topla (Sistem Sihirbazı)</span>
-            </button>
+            <div className="space-y-2.5">
+              <button
+                type="button"
+                onClick={() => handleNavClick('builder')}
+                className="flex min-h-[48px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#FF7900] px-4 py-3 text-sm font-bold text-[#080B12] shadow-[0_12px_28px_-12px_rgba(255,121,0,0.75)] transition-colors hover:bg-[#FF912E]"
+              >
+                <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                <span className="whitespace-nowrap">Kendin Topla (Sistem Sihirbazı)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleNavClick('advisor')}
+                className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#246BFD]/60 bg-[#246BFD]/15 px-4 py-2.5 text-xs font-semibold text-slate-100 transition-colors hover:bg-[#246BFD]"
+              >
+                <Gauge className="h-4 w-4 shrink-0 text-[#60A5FA]" />
+                <span className="whitespace-nowrap">Bütçe &amp; Oyunla Sistem Öner (FPS)</span>
+              </button>
+            </div>
 
             <div className="mt-6">
               <p className="px-2 text-xs font-semibold tracking-wider text-[#246BFD]">

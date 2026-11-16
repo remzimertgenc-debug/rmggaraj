@@ -80,7 +80,7 @@ export function FeaturedSystemsBand({
       {/* Horizontal Scrollable Ready Systems Showcase (Compact Cards) */}
       <div
         ref={scrollerRef}
-        className="flex snap-x snap-mandatory gap-5 overflow-x-auto pb-4 scroll-smooth [scrollbar-color:#334155_transparent] [scrollbar-width:thin]"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 scroll-smooth [scrollbar-color:#334155_transparent] [scrollbar-width:thin] sm:gap-5"
       >
         {readySystems.map(({ preset, build }) => {
           const baseName = preset.systemName.split(' - ')[0].trim();
@@ -100,7 +100,7 @@ export function FeaturedSystemsBand({
               badgeText={preset.badgeText}
               compactSummary={summaryLine}
               onInspect={onInspectBuild}
-              className="w-[275px] shrink-0 snap-start sm:w-[295px]"
+              className="w-[calc(50%-6px)] min-w-[160px] shrink-0 snap-start sm:w-[295px]"
             />
           );
         })}

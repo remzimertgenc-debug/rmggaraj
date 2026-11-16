@@ -11,6 +11,7 @@ import {
   Eye,
   EyeOff,
   Fan,
+  Gauge,
   HardDrive,
   Info,
   MemoryStick,
@@ -56,6 +57,7 @@ interface PCBuilderProps {
   onResetAll: () => void;
   onInspectBuild: (build: PcBuild) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
+  onOpenAdvisor?: () => void;
 }
 
 type BuilderSlotConfig = {
@@ -664,6 +666,7 @@ export function PCBuilder({
   onResetAll,
   onInspectBuild,
   onInspectPart,
+  onOpenAdvisor,
 }: PCBuilderProps) {
   const [openField, setOpenField] = useState<keyof SelectedPartIds | null>(
     initialStepField ?? 'cpuId'
@@ -996,6 +999,17 @@ export function PCBuilder({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {onOpenAdvisor && (
+              <button
+                type="button"
+                onClick={onOpenAdvisor}
+                className="inline-flex min-h-[42px] cursor-pointer items-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8E29] whitespace-nowrap"
+              >
+                <Gauge className="h-4 w-4 shrink-0" />
+                <span>Bütçe &amp; Oyuna Göre Sistem Öner (FPS)</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => {

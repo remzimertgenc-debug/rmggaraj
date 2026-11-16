@@ -79,20 +79,24 @@ export function getBuildGallery(build: PcBuild): { src: string; label: string }[
 export const POPULAR_GAMES: string[] = [
   'Valorant',
   'Counter-Strike 2',
-  'Cyberpunk 2077',
-  'Red Dead Redemption 2',
-  "Baldur's Gate 3",
-  'GTA V',
   'League of Legends',
-  'Forza Horizon 5',
-  'Alan Wake 2',
+  'Fortnite',
+  'PUBG: Battlegrounds',
   'Apex Legends',
+  'GTA V',
+  'Forza Horizon 5',
+  "Baldur's Gate 3",
+  'Red Dead Redemption 2',
+  'Cyberpunk 2077',
+  'Alan Wake 2',
 ];
 
 export const ESPORTS_GAMES = new Set([
   'Valorant',
   'Counter-Strike 2',
   'League of Legends',
+  'Fortnite',
+  'PUBG: Battlegrounds',
   'Apex Legends',
 ]);
 

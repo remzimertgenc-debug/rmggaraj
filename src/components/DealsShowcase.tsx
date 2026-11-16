@@ -178,13 +178,13 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
       {/* Horizontal Scrollable Hardware Deals Showcase */}
       <div
         ref={scrollerRef}
-        className="flex snap-x snap-mandatory gap-6 overflow-x-auto pb-4 scroll-smooth [scrollbar-color:#334155_transparent] [scrollbar-width:thin]"
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-4 scroll-smooth [scrollbar-color:#334155_transparent] [scrollbar-width:thin] sm:gap-6"
       >
         {dealItems.map((item) => (
           <article
             key={item.id}
             onClick={() => onInspectPart(item.category, item.id)}
-            className="group flex w-[275px] shrink-0 snap-start cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-transform duration-200 hover:-translate-y-0.5 hover:border-slate-500/80 sm:w-[295px]"
+            className="group flex w-[calc(50%-6px)] min-w-[160px] shrink-0 snap-start cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-transform duration-200 hover:-translate-y-0.5 hover:border-slate-500/80 sm:w-[295px]"
           >
             <div className="aspect-[4/3] w-full overflow-hidden bg-slate-900/90">
               <ProductImage
@@ -196,9 +196,9 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
               />
             </div>
 
-            <div className="flex flex-1 flex-col justify-between p-5">
+            <div className="flex flex-1 flex-col justify-between p-3 sm:p-5">
               <div>
-                <div className="flex items-center justify-between gap-2 text-xs font-medium text-slate-400">
+                <div className="flex items-center justify-between gap-1.5 text-[10px] font-medium text-slate-400 sm:gap-2 sm:text-xs">
                   <span className="truncate">
                     {CATEGORY_LABELS[item.category]} · {item.brand}
                   </span>
@@ -207,17 +207,17 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
                   </span>
                 </div>
 
-                <h3 className="mt-2 line-clamp-2 font-display text-base font-bold leading-snug text-slate-50">
+                <h3 className="mt-1.5 line-clamp-2 font-display text-xs font-bold leading-snug text-slate-50 sm:mt-2 sm:text-base">
                   {item.name}
                 </h3>
               </div>
 
-              <div className="mt-5">
-                <div className="flex items-baseline gap-2.5">
-                  <span className="font-mono text-2xl font-extrabold tracking-tight text-[#FF7900] tabular-nums">
+              <div className="mt-3 sm:mt-5">
+                <div className="flex flex-wrap items-baseline gap-1.5 sm:gap-2.5">
+                  <span className="font-mono text-base font-extrabold tracking-tight text-[#FF7900] tabular-nums sm:text-2xl">
                     {formatTry(item.dealPriceTry)}
                   </span>
-                  <span className="font-mono text-xs text-slate-400 line-through tabular-nums">
+                  <span className="font-mono text-[10px] text-slate-400 line-through tabular-nums sm:text-xs">
                     {formatTry(item.oldPriceTry)}
                   </span>
                 </div>
@@ -228,10 +228,10 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
                     e.stopPropagation();
                     onInspectPart(item.category, item.id);
                   }}
-                  className="mt-4 inline-flex min-h-[42px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8C24]"
+                  className="mt-2.5 inline-flex min-h-[36px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-[#FF7900] px-3 py-1.5 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] sm:mt-4 sm:min-h-[42px] sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
                 >
-                  <span>Fırsatı İncele</span>
-                  <ArrowRight className="h-4 w-4 shrink-0" />
+                  <span>İncele</span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" />
                 </button>
               </div>
             </div>

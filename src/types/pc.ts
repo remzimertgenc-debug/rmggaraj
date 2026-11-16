@@ -2,6 +2,7 @@ export type PageId =
   | 'home'
   | 'systems'
   | 'builder'
+  | 'advisor'
   | 'gpus'
   | 'cpus'
   | 'catalog'
