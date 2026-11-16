@@ -1,0 +1,51 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Donanım Kataloğundaki Ürünler (Örn: cpu-r5-7500f)
+model Product {
+  id             String    @id
+  category       String
+  brand          String
+  modelName      String
+  specSummary    String    @default("")
+  imageUrl       String?
+  socket         String?   // Örn: AM4, AM5, LGA1700, LGA1851
+  ramType        String?   // Örn: DDR4, DDR5, DDR4,DDR5
+  formFactor     String?   // Örn: ATX, Micro-ATX, Mini-ITX
+  tdp            Int?      // Güç tüketimi (Watt)
+  wattage        Int?      // PSU gücü / soğutucu kapasitesi (Watt)
+  maxGpuLengthMm Int?      // GPU uzunluğu veya Kasa maksimum GPU alanı (mm)
+  isCatalogCore  Boolean   @default(false)
+  listings       Listing[]
+}
+
+// E-Ticaret Sitelerindeki İlanlar/Linkler
+model Listing {
+  id           String     @id @default(uuid())
+  productId    String
+  product      Product    @relation(fields: [productId], references: [id])
+  storeName    String     // Örn: "Vatan", "İtopya", "Amazon"
+  url          String
+  currentPrice Float
+  isNew        Boolean    @default(true) // Sıfır ürün
+  priceHistory PriceLog[]
+  updatedAt    DateTime   @updatedAt
+}
+
+// Fiyat Geçmişi (Grafik için her gün kaydedilecek veriler)
+model PriceLog {
+  id        String   @id @default(uuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  price     Float
+  createdAt DateTime @default(now())
+}
