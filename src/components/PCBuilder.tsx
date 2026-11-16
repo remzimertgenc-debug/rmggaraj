@@ -20,18 +20,16 @@ import {
   Search,
   ShieldCheck,
   Sparkles,
-  Tag,
   Trash2,
   Zap,
 } from 'lucide-react';
 import { ReactNode, useEffect, useMemo, useState } from 'react';
-import { assembleBuildFromIds, CONDITION_OPTIONS, formatTry } from '../data/builds';
+import { assembleBuildFromIds, formatTry } from '../data/builds';
 import { getMergedCatalogParts } from '../data/catalogAdapter';
 import {
   BasePartSpec,
   BuilderPreferences,
   CasePart,
-  ComponentCondition,
   CoolerPart,
   CpuPart,
   GpuPart,
@@ -54,12 +52,10 @@ interface PCBuilderProps {
   pricingError: string | null;
   initialStepField?: keyof SelectedPartIds | null;
   onRetryPricing: () => void;
-  onChangePreferences: (next: BuilderPreferences) => void;
   onChangeSelectedIds: (next: Partial<SelectedPartIds>) => void;
   onResetAll: () => void;
   onInspectBuild: (build: PcBuild) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
 type BuilderSlotConfig = {
@@ -161,22 +157,11 @@ function normalizeQuery(value: string): string {
     .replace(/[^a-z0-9]/g, '');
 }
 
-function getPartPriceForCondition(
+function getPartPrice(
   partId: string,
-  field: keyof SelectedPartIds,
-  condition: ComponentCondition,
   catalog: PricingCatalogResponse | null
 ): number {
-  const info = catalog?.partsPricing[partId];
-  if (!info) return 0;
-  const useUsed =
-    condition === 'ikinci-el'
-      ? true
-      : condition === 'karma'
-        ? field === 'cpuId' || field === 'gpuId'
-        : false;
-  if (useUsed && info.usedPriceTry !== null) return info.usedPriceTry;
-  return info.newPriceTry ?? 0;
+  return catalog?.partsPricing[partId]?.newPriceTry ?? 0;
 }
 
 interface PartCompatResult {
@@ -675,12 +660,10 @@ export function PCBuilder({
   pricingError,
   initialStepField,
   onRetryPricing,
-  onChangePreferences,
   onChangeSelectedIds,
   onResetAll,
   onInspectBuild,
   onInspectPart,
-  onManageListings,
 }: PCBuilderProps) {
   const [openField, setOpenField] = useState<keyof SelectedPartIds | null>(
     initialStepField ?? 'cpuId'
@@ -800,9 +783,9 @@ export function PCBuilder({
     return builderSlots.reduce((sum, slot) => {
       const partId = selectedIds[slot.field];
       if (!partId) return sum;
-      return sum + getPartPriceForCondition(partId, slot.field, preferences.condition, pricingCatalog);
+      return sum + getPartPrice(partId, pricingCatalog);
     }, 0);
-  }, [builderSlots, preferences.condition, pricingCatalog, selectedIds]);
+  }, [builderSlots, pricingCatalog, selectedIds]);
 
   const selectedTotalTdp = useMemo(
     () => computeSelectedTotalTdp(resolvedParts, dbCompatById),
@@ -943,7 +926,7 @@ export function PCBuilder({
       const pid = selectedIds[slot.field];
       const part = pid ? slot.items.find((i) => i.id === pid) : undefined;
       if (!part) return `${slot.title}: Seçilmedi`;
-      const price = getPartPriceForCondition(part.id, slot.field, preferences.condition, pricingCatalog);
+      const price = getPartPrice(part.id, pricingCatalog);
       return `${slot.title}: ${part.model} (${price > 0 ? formatTry(price) : 'Fiyat Yok'})`;
     });
     lines.push(`---`);
@@ -990,7 +973,7 @@ export function PCBuilder({
               Kendin Topla — Sıfırdan PC Toplama Sihirbazı
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-[#94A3B8]">
-              Parçaları adım adım seçin. İşlemci soketi (AM4/AM5/LGA1700), anakart bellek tipi
+              Parçaları adım adım seçin. İşlemci soketi (AM4/AM5/LGA1700/LGA1851), anakart bellek tipi
               (DDR4/DDR5), kasa ölçüsü ve güç kaynağı kapasitesi gerçek zamanlı olarak kontrol edilir.
             </p>
 
@@ -1041,29 +1024,8 @@ export function PCBuilder({
           </div>
         </div>
 
-        {/* Condition Selector Bar */}
-        <div className="mt-6 flex flex-col gap-3 border-t border-slate-800/80 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold text-[#94A3B8] mr-1">Fiyatlandırma Modu:</span>
-            {CONDITION_OPTIONS.map((opt) => {
-              const active = preferences.condition === opt.id;
-              return (
-                <button
-                  key={opt.id}
-                  type="button"
-                  onClick={() => onChangePreferences({ ...preferences, condition: opt.id })}
-                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                    active
-                      ? 'bg-[#FF7900] text-[#080B12]'
-                      : 'border border-slate-700 bg-[#080B12] text-[#94A3B8] hover:text-[#F5F7FA]'
-                  }`}
-                >
-                  {opt.title}
-                </button>
-              );
-            })}
-          </div>
-
+        {/* Compatibility Filter Toggle */}
+        <div className="mt-6 flex justify-end border-t border-slate-800/80 pt-5">
           <button
             type="button"
             onClick={() => setHideIncompatible((prev) => !prev)}
@@ -1123,12 +1085,7 @@ export function PCBuilder({
               ? slot.items.find((item) => item.id === selectedId)
               : undefined;
             const selectedPrice = selectedPart
-              ? getPartPriceForCondition(
-                  selectedPart.id,
-                  slot.field,
-                  preferences.condition,
-                  pricingCatalog
-                )
+              ? getPartPrice(selectedPart.id, pricingCatalog)
               : 0;
             const isOpen = openField === slot.field;
 
@@ -1141,12 +1098,7 @@ export function PCBuilder({
                 dbCompatById,
                 selectedTotalTdp
               ),
-              price: getPartPriceForCondition(
-                item.id,
-                slot.field,
-                preferences.condition,
-                pricingCatalog
-              ),
+              price: getPartPrice(item.id, pricingCatalog),
             }));
 
             const compatibleCount = evaluatedItems.filter((e) => e.compat.compatible).length;
@@ -1251,11 +1203,10 @@ export function PCBuilder({
                           </span>
                           <button
                             type="button"
-                            onClick={() => onManageListings(selectedPart.id)}
+                            onClick={() => onInspectPart(slot.category, selectedPart.id)}
                             className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-medium text-[#246BFD] hover:underline"
                           >
-                            <Tag className="h-3 w-3" />
-                            <span>Mağazaları Gör</span>
+                            <span>Mağaza Fiyatları</span>
                           </button>
                         </div>
 
@@ -1499,12 +1450,7 @@ export function PCBuilder({
                 const pid = selectedIds[slot.field];
                 const part = pid ? slot.items.find((i) => i.id === pid) : undefined;
                 const price = part
-                  ? getPartPriceForCondition(
-                      part.id,
-                      slot.field,
-                      preferences.condition,
-                      pricingCatalog
-                    )
+                  ? getPartPrice(part.id, pricingCatalog)
                   : 0;
 
                 return (
@@ -1592,8 +1538,7 @@ export function PCBuilder({
                 </span>
               </div>
               <p className="mt-1 text-right text-[11px] text-[#94A3B8]">
-                {CONDITION_OPTIONS.find((c) => c.id === preferences.condition)?.title} piyasa
-                fiyatları baz alınmıştır.
+                Güncel sıfır piyasa fiyatları baz alınmıştır.
               </p>
             </div>
 

@@ -5,7 +5,6 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
-  ExternalLink,
   Scale,
   ShieldAlert,
   ShieldCheck,
@@ -25,7 +24,6 @@ interface SystemDetailPageProps {
   onCustomizeBuild: (build: PcBuild) => void;
   onToggleCompare: (build: PcBuild) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
 export function SystemDetailPage({
@@ -36,7 +34,6 @@ export function SystemDetailPage({
   onCustomizeBuild,
   onToggleCompare,
   onInspectPart,
-  onManageListings,
 }: SystemDetailPageProps) {
   const gallery = getBuildGallery(build);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -150,13 +147,13 @@ export function SystemDetailPage({
 
             {/* Big Orange Price */}
             <div className="mt-6 border-y border-slate-800 py-5">
-              {build.zeroVsUsedSavingsTry > 0 && (
+              {build.bundleSavingsTry > 0 && (
                 <div className="mb-1 flex items-center gap-3 text-sm">
                   <span className="font-mono text-[#94A3B8] line-through tabular-nums">
                     {formatTry(build.allNewTotalTry)}
                   </span>
                   <span className="font-mono font-semibold text-[#FF7900]">
-                    %{build.zeroVsUsedSavingsPercent} Tasarruf ({formatTry(build.zeroVsUsedSavingsTry)})
+                    %{build.bundleSavingsPercent} Tasarruf ({formatTry(build.bundleSavingsTry)})
                   </span>
                 </div>
               )}
@@ -166,7 +163,7 @@ export function SystemDetailPage({
                 </span>
                 <span className="text-xs text-[#94A3B8]">
                   {build.hasRealListingData
-                    ? 'İlan ve referans fiyat karışımı'
+                    ? 'Canlı mağaza ve referans fiyat'
                     : 'Referans bütçe fiyatı'}
                 </span>
               </div>
@@ -187,7 +184,7 @@ export function SystemDetailPage({
                       Kuruluma Hazır · {verifiedCount}/{totalChecks} Uyumluluk Doğrulandı
                     </span>
                     <span className="text-xs text-[#94A3B8]">
-                      {build.conditionSummary}
+                      Tüm bileşenler sıfır ve uyumluluk onaylıdır
                     </span>
                   </div>
                 </>
@@ -348,14 +345,6 @@ export function SystemDetailPage({
               açabilirsiniz.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onManageListings()}
-            className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-[#FF7900] hover:underline"
-          >
-            <span>İlan Fiyatlarını Yönet</span>
-            <ExternalLink className="h-4 w-4" />
-          </button>
         </div>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -382,7 +371,7 @@ export function SystemDetailPage({
                     </div>
                     <div>
                       <span className="block text-xs font-medium text-[#94A3B8]">
-                        {spec.label} · {spec.conditionLabel}
+                        {spec.label}
                       </span>
                       <h3 className="mt-0.5 font-display text-base font-bold text-[#F5F7FA] transition-colors group-hover:text-[#246BFD]">
                         {spec.model}
@@ -420,16 +409,6 @@ export function SystemDetailPage({
                       Ürün Sayfası →
                     </button>
                   </div>
-
-                  {spec.priceTry > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => onManageListings(spec.partId)}
-                      className="cursor-pointer text-xs font-medium text-[#94A3B8] hover:text-[#FF7900]"
-                    >
-                      İlan Ekle
-                    </button>
-                  )}
                 </div>
 
                 {isExpanded && (
@@ -446,17 +425,8 @@ export function SystemDetailPage({
                       <strong className="text-[#F5F7FA]">Fiyat Kaynağı: </strong>
                       {spec.priceSourceSummary}
                       {spec.excludedOutlierCount > 0 &&
-                        ` (${spec.excludedOutlierCount} şüpheli ilan hariç)`}
+                        ` (${spec.excludedOutlierCount} şüpheli fiyat hariç)`}
                     </p>
-                    {spec.comparison.newPriceTry !== null &&
-                      spec.comparison.usedPriceTry !== null && (
-                        <p className="text-[#FF7900]">
-                          Sıfır: {formatTry(spec.comparison.newPriceTry)} · İkinci El:{' '}
-                          {formatTry(spec.comparison.usedPriceTry)} (Fark:{' '}
-                          {formatTry(spec.comparison.differenceTry ?? 0)} / %
-                          {spec.comparison.savingsPercent ?? 0})
-                        </p>
-                      )}
                   </div>
                 )}
               </div>

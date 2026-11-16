@@ -32,11 +32,11 @@ const LEGAL_DOCUMENTS: Record<LegalPageId, LegalDocumentContent> = {
       },
       {
         heading: '2. Satış Ortaklığı (Affiliate) ve Mağaza Yönlendirmeleri',
-        body: 'Ürün detay sayfalarındaki "Mağazaya Git" bağlantıları kullanıcıları ilgili yetkili satıcı veya ilan platformlarına yönlendirir. Satın alma, garanti, kargo ve iade süreçleri doğrudan alışverişin yapıldığı mağazanın sorumluluğundadır.',
+        body: 'Ürün detay sayfalarındaki "Mağazaya Git" bağlantıları kullanıcıları ilgili yetkili satıcı mağazalara yönlendirir. Satın alma, garanti, kargo ve iade süreçleri doğrudan alışverişin yapıldığı mağazanın sorumluluğundadır.',
       },
       {
-        heading: '3. Kullanıcı İlanları ve Doğruluk',
-        body: 'Kullanıcılar tarafından eklenen ikinci el veya mağaza ilanları moderasyon ve aykırı değer analizinden geçirilir. Yanıltıcı fiyat veya sahte bağlantı içeren kayıtlar sistem tarafından otomatik olarak hariç tutulur veya kaldırılır.',
+        heading: '3. Mağaza Verileri ve Fiyat Doğruluğu',
+        body: 'Yetkili satıcı akışlarından alınan sıfır ürün fiyatları moderasyon ve aykırı değer analizinden geçirilir. Yanıltıcı fiyat veya bozuk bağlantı içeren kayıtlar sistem tarafından otomatik olarak hariç tutulur veya güncellenir.',
       },
       {
         heading: '4. Güvenlik ve Otomatik Erişim Kuralları',
@@ -54,11 +54,11 @@ const LEGAL_DOCUMENTS: Record<LegalPageId, LegalDocumentContent> = {
     sections: [
       {
         heading: '1. Toplanan Bilgiler',
-        body: 'RMG Garaj üzerinde ziyaretçilerin donanım karşılaştırması ve sistem toplama özelliklerini kullanması için kişisel veri paylaşması zorunlu değildir. Yalnızca Google hesabı ile oturum açan kullanıcıların kimlik doğrulama bilgisi (e-posta ve kullanıcı kimliği) ilan yönetimi amacıyla işlenir.',
+        body: 'RMG Garaj üzerinde ziyaretçilerin donanım karşılaştırması ve sistem toplama özelliklerini kullanması için kişisel veri paylaşması zorunlu değildir. Yalnızca Google hesabı ile oturum açan kullanıcıların kimlik doğrulama bilgisi (e-posta ve kullanıcı kimliği) hesap doğrulama amacıyla işlenir.',
       },
       {
         heading: '2. Verilerin Kullanım Amacı',
-        body: 'Elde edilen hesap bilgileri yalnızca eklediğiniz ilanların size ait olduğunu doğrulamak, silme/düzenleme yetkisi tanımlamak ve sistem güvenliğini sağlamak amacıyla kullanılır.',
+        body: 'Elde edilen hesap bilgileri yalnızca oturumunuzu doğrulamak, kaydedilen sistem yapılandırmalarınızı yönetmek ve platform güvenliğini sağlamak amacıyla kullanılır.',
       },
       {
         heading: '3. Üçüncü Taraf Bağlantılar ve Reklam Alanları',

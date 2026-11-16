@@ -3,9 +3,10 @@ const STORE_REF_TAGS: Record<string, string> = {
   itopya: 'rmggaraj_itopya',
   sinerji: 'rmggaraj_sinerji',
   trendyol: 'rmggaraj_trendyol',
-  sahibinden: 'rmggaraj_sahibinden',
-  letgo: 'rmggaraj_letgo',
-  'facebook marketplace': 'rmggaraj_facebook',
+  incehesap: 'rmggaraj_incehesap',
+  'gaming.gen.tr': 'rmggaraj_gaminggen',
+  hepsiburada: 'rmggaraj_hepsiburada',
+  'amazon tr': 'rmggaraj_amazontr',
   'yetkili saglayici': 'rmggaraj_partner',
 };
 

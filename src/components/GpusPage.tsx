@@ -1,35 +1,96 @@
-import { ArrowRight, Cpu, SlidersHorizontal } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatTry } from '../data/builds';
 import { getMergedCatalogParts } from '../data/catalogAdapter';
-import { PartCategoryKey, PricingCatalogResponse } from '../types/pc';
-import { CatalogFilterSidebar, FilterGroup, FilterOption } from './CatalogFilterSidebar';
-import { ProductImage } from './ProductImage';
+import type { GpuPart, PartCategoryKey, PricingCatalogResponse } from '../types/pc';
+import {
+  CatalogFilterSidebar,
+  type FilterGroup,
+  type FilterOption,
+  type PricePreset,
+} from './CatalogFilterSidebar';
+import {
+  CatalogProductSection,
+  type ActiveFilterChip,
+  type CatalogDisplayProduct,
+  type CatalogSortOrder,
+} from './CatalogProductSection';
 
 interface GpusPageProps {
   pricingCatalog: PricingCatalogResponse | null;
   onBuildWithGpu: (gpuId: string) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
-type SortOrder = 'name' | 'price-asc' | 'price-desc';
+const GPU_PRICE_PRESETS: PricePreset[] = [
+  { id: 'gpu-under-15k', label: '15.000 ₺ Altı', min: '', max: '15000' },
+  { id: 'gpu-15k-25k', label: '15.000 - 25.000 ₺', min: '15000', max: '25000' },
+  { id: 'gpu-25k-45k', label: '25.000 - 45.000 ₺', min: '25000', max: '45000' },
+  { id: 'gpu-over-45k', label: '45.000 ₺ Üzeri', min: '45000', max: '' },
+];
+
+const CHIP_MAKER_ORDER = ['NVIDIA', 'AMD', 'Intel'];
+const SERIES_ORDER = [
+  'RTX 50 Serisi',
+  'RTX 40 Serisi',
+  'RTX 30 Serisi',
+  'RX 9000 Serisi',
+  'RX 7000 Serisi',
+  'RX 6000 Serisi',
+  'Intel Arc',
+  'Diğer',
+];
+const LENGTH_BAND_ORDER = [
+  'Kompakt (≤ 260 mm)',
+  'Orta (261–300 mm)',
+  'Büyük (301+ mm)',
+];
+
+function inferChipMaker(model: string): string {
+  const up = model.toUpperCase();
+  if (up.includes('GEFORCE') || up.includes('RTX') || up.includes('GTX')) return 'NVIDIA';
+  if (up.includes('RADEON') || up.includes('RX ')) return 'AMD';
+  if (up.includes('ARC')) return 'Intel';
+  return 'Diğer';
+}
+
+function inferGpuSeries(model: string): string {
+  const up = model.toUpperCase();
+  if (up.includes('RTX 50')) return 'RTX 50 Serisi';
+  if (up.includes('RTX 40')) return 'RTX 40 Serisi';
+  if (up.includes('RTX 30')) return 'RTX 30 Serisi';
+  if (up.includes('RX 90')) return 'RX 9000 Serisi';
+  if (up.includes('RX 7')) return 'RX 7000 Serisi';
+  if (up.includes('RX 6')) return 'RX 6000 Serisi';
+  if (up.includes('ARC')) return 'Intel Arc';
+  return 'Diğer';
+}
+
+function inferLengthBand(lengthMm: number | null): string | null {
+  if (lengthMm === null) return null;
+  if (lengthMm <= 260) return 'Kompakt (≤ 260 mm)';
+  if (lengthMm <= 300) return 'Orta (261–300 mm)';
+  return 'Büyük (301+ mm)';
+}
 
 export function GpusPage({
   pricingCatalog,
+  onBuildWithGpu,
   onInspectPart,
 }: GpusPageProps) {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
+  const [selectedChipMakers, setSelectedChipMakers] = useState<string[]>([]);
+  const [selectedSeries, setSelectedSeries] = useState<string[]>([]);
   const [selectedVrams, setSelectedVrams] = useState<string[]>([]);
+  const [selectedLengthBands, setSelectedLengthBands] = useState<string[]>([]);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
   const [search, setSearch] = useState('');
-  const [conditionMode, setConditionMode] = useState<'sifir' | 'ikinci-el'>('sifir');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('name');
+  const [sortOrder, setSortOrder] = useState<CatalogSortOrder>('name');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(24);
 
-  const allGpus = useMemo(
+  const allGpus = useMemo<GpuPart[]>(
     () =>
       getMergedCatalogParts(pricingCatalog).gpus.filter(
         (g) => !g.isIntegrated && !g.isUnverifiedSpecSample
@@ -37,11 +98,51 @@ export function GpusPage({
     [pricingCatalog]
   );
 
+  const storesByPartId = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const listing of pricingCatalog?.listings ?? []) {
+      if (listing.isSuspiciousOutlier) continue;
+      let set = map.get(listing.partId);
+      if (!set) {
+        set = new Set<string>();
+        map.set(listing.partId, set);
+      }
+      set.add(listing.platform);
+    }
+    return map;
+  }, [pricingCatalog?.listings]);
+
   const brandOptions = useMemo<FilterOption[]>(() => {
     const counts = new Map<string, number>();
     for (const g of allGpus) counts.set(g.brand, (counts.get(g.brand) ?? 0) + 1);
     return Array.from(counts.entries())
       .sort(([a], [b]) => a.localeCompare(b, 'tr'))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allGpus]);
+
+  const chipMakerOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const g of allGpus) {
+      const maker = inferChipMaker(g.model);
+      counts.set(maker, (counts.get(maker) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => {
+        const ia = CHIP_MAKER_ORDER.indexOf(a);
+        const ib = CHIP_MAKER_ORDER.indexOf(b);
+        return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
+      })
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allGpus]);
+
+  const seriesOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const g of allGpus) {
+      const s = inferGpuSeries(g.model);
+      counts.set(s, (counts.get(s) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => SERIES_ORDER.indexOf(a) - SERIES_ORDER.indexOf(b))
       .map(([value, count]) => ({ value, label: value, count }));
   }, [allGpus]);
 
@@ -55,7 +156,35 @@ export function GpusPage({
       .map(([vram, count]) => ({ value: String(vram), label: `${vram} GB VRAM`, count }));
   }, [allGpus]);
 
-  const toggleItem = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+  const lengthBandOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const g of allGpus) {
+      const band = inferLengthBand(g.lengthMm);
+      if (band) counts.set(band, (counts.get(band) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => LENGTH_BAND_ORDER.indexOf(a) - LENGTH_BAND_ORDER.indexOf(b))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allGpus]);
+
+  const storeOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const g of allGpus) {
+      const stores = storesByPartId.get(g.id);
+      if (!stores) continue;
+      for (const store of stores) {
+        counts.set(store, (counts.get(store) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'tr'))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allGpus, storesByPartId]);
+
+  const toggleItem = (
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    value: string
+  ) => {
     setter((prev) =>
       prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
     );
@@ -73,23 +202,55 @@ export function GpusPage({
   const parsedMin = minPrice.trim() !== '' ? Number(minPrice) : null;
   const parsedMax = maxPrice.trim() !== '' ? Number(maxPrice) : null;
 
+  useEffect(() => {
+    setVisibleLimit(24);
+  }, [
+    selectedBrands,
+    selectedChipMakers,
+    selectedSeries,
+    selectedVrams,
+    selectedLengthBands,
+    selectedStores,
+    minPrice,
+    maxPrice,
+    search,
+    sortOrder,
+  ]);
+
   const gpus = useMemo(() => {
-    const getPrice = (gpuId: string) => {
-      const pricing = pricingCatalog?.partsPricing[gpuId];
-      return conditionMode === 'ikinci-el'
-        ? pricing?.usedPriceTry ?? 0
-        : pricing?.newPriceTry ?? 0;
-    };
+    const getPrice = (gpuId: string) => pricingCatalog?.partsPricing[gpuId]?.newPriceTry ?? 0;
 
     const filtered = allGpus.filter((g) => {
       if (selectedBrands.length > 0 && !selectedBrands.includes(g.brand)) return false;
+      if (
+        selectedChipMakers.length > 0 &&
+        !selectedChipMakers.includes(inferChipMaker(g.model))
+      ) {
+        return false;
+      }
+      if (selectedSeries.length > 0 && !selectedSeries.includes(inferGpuSeries(g.model))) {
+        return false;
+      }
       if (
         selectedVrams.length > 0 &&
         (g.vramGb === null || !selectedVrams.includes(String(g.vramGb)))
       ) {
         return false;
       }
-      if (normalizedSearch && !normalizeText(g.model).includes(normalizedSearch)) {
+      if (selectedLengthBands.length > 0) {
+        const band = inferLengthBand(g.lengthMm);
+        if (!band || !selectedLengthBands.includes(band)) return false;
+      }
+      if (selectedStores.length > 0) {
+        const partStores = storesByPartId.get(g.id);
+        if (!partStores || !selectedStores.some((s) => partStores.has(s))) return false;
+      }
+      if (
+        normalizedSearch &&
+        !normalizeText(`${g.brand} ${g.model} ${g.shortTitle} ${g.specSummary}`).includes(
+          normalizedSearch
+        )
+      ) {
         return false;
       }
 
@@ -110,25 +271,37 @@ export function GpusPage({
     });
   }, [
     allGpus,
-    conditionMode,
     normalizedSearch,
     parsedMax,
     parsedMin,
     pricingCatalog,
     selectedBrands,
+    selectedChipMakers,
+    selectedLengthBands,
+    selectedSeries,
+    selectedStores,
     selectedVrams,
     sortOrder,
+    storesByPartId,
   ]);
 
   const activeFilterCount =
     selectedBrands.length +
+    selectedChipMakers.length +
+    selectedSeries.length +
     selectedVrams.length +
+    selectedLengthBands.length +
+    selectedStores.length +
     (minPrice.trim() !== '' ? 1 : 0) +
     (maxPrice.trim() !== '' ? 1 : 0);
 
   const handleResetFilters = () => {
     setSelectedBrands([]);
+    setSelectedChipMakers([]);
+    setSelectedSeries([]);
     setSelectedVrams([]);
+    setSelectedLengthBands([]);
+    setSelectedStores([]);
     setMinPrice('');
     setMaxPrice('');
     setSearch('');
@@ -136,13 +309,130 @@ export function GpusPage({
 
   const featureGroups: FilterGroup[] = [
     {
+      id: 'chipMaker',
+      title: 'Çip Üreticisi',
+      options: chipMakerOptions,
+      selectedValues: selectedChipMakers,
+      onToggle: (val) => toggleItem(setSelectedChipMakers, val),
+      defaultOpen: true,
+    },
+    {
+      id: 'series',
+      title: 'Grafik İşlemci Serisi',
+      options: seriesOptions,
+      selectedValues: selectedSeries,
+      onToggle: (val) => toggleItem(setSelectedSeries, val),
+      defaultOpen: true,
+    },
+    {
       id: 'vram',
       title: 'VRAM Kapasitesi',
       options: vramOptions,
       selectedValues: selectedVrams,
       onToggle: (val) => toggleItem(setSelectedVrams, val),
+      defaultOpen: true,
+    },
+    {
+      id: 'lengthBand',
+      title: 'Kart Uzunluğu',
+      options: lengthBandOptions,
+      selectedValues: selectedLengthBands,
+      onToggle: (val) => toggleItem(setSelectedLengthBands, val),
+      defaultOpen: false,
+    },
+    {
+      id: 'store',
+      title: 'Satıcı Mağaza',
+      options: storeOptions,
+      selectedValues: selectedStores,
+      onToggle: (val) => toggleItem(setSelectedStores, val),
+      defaultOpen: false,
+      searchable: false,
     },
   ];
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    const chips: ActiveFilterChip[] = [];
+
+    if (minPrice.trim() !== '' || maxPrice.trim() !== '') {
+      const minLabel = minPrice.trim() ? formatTry(Number(minPrice)) : '0 ₺';
+      const maxLabel = maxPrice.trim() ? formatTry(Number(maxPrice)) : 'Sınırsız';
+      chips.push({
+        key: 'price-range',
+        label: `Fiyat: ${minLabel} - ${maxLabel}`,
+        onRemove: () => {
+          setMinPrice('');
+          setMaxPrice('');
+        },
+      });
+    }
+
+    for (const brand of selectedBrands) {
+      chips.push({
+        key: `brand-${brand}`,
+        label: `Marka: ${brand}`,
+        onRemove: () => toggleItem(setSelectedBrands, brand),
+      });
+    }
+    for (const maker of selectedChipMakers) {
+      chips.push({
+        key: `maker-${maker}`,
+        label: `Çip: ${maker}`,
+        onRemove: () => toggleItem(setSelectedChipMakers, maker),
+      });
+    }
+    for (const series of selectedSeries) {
+      chips.push({
+        key: `series-${series}`,
+        label: series,
+        onRemove: () => toggleItem(setSelectedSeries, series),
+      });
+    }
+    for (const vram of selectedVrams) {
+      chips.push({
+        key: `vram-${vram}`,
+        label: `${vram} GB VRAM`,
+        onRemove: () => toggleItem(setSelectedVrams, vram),
+      });
+    }
+    for (const band of selectedLengthBands) {
+      chips.push({
+        key: `len-${band}`,
+        label: band,
+        onRemove: () => toggleItem(setSelectedLengthBands, band),
+      });
+    }
+    for (const store of selectedStores) {
+      chips.push({
+        key: `store-${store}`,
+        label: `Mağaza: ${store}`,
+        onRemove: () => toggleItem(setSelectedStores, store),
+      });
+    }
+
+    return chips;
+  }, [
+    maxPrice,
+    minPrice,
+    selectedBrands,
+    selectedChipMakers,
+    selectedLengthBands,
+    selectedSeries,
+    selectedStores,
+    selectedVrams,
+  ]);
+
+  const displayItems = useMemo<CatalogDisplayProduct[]>(
+    () =>
+      gpus.map((g) => ({
+        id: g.id,
+        category: 'gpu',
+        brand: g.brand,
+        model: g.model,
+        specSummary: g.specSummary,
+      })),
+    [gpus]
+  );
 
   return (
     <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
@@ -155,39 +445,14 @@ export function GpusPage({
             Ekran Kartları
           </h1>
           <p className="mt-2 max-w-xl text-sm font-normal text-slate-400">
-            NVIDIA GeForce, AMD Radeon ve Intel Arc ekran kartlarının güncel fiyatlarını
+            NVIDIA GeForce, AMD Radeon ve Intel Arc ekran kartlarının güncel mağaza fiyatlarını
             karşılaştırın.
           </p>
         </div>
-
-        <div className="inline-flex rounded-xl border border-slate-700/70 bg-slate-800 p-1 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setConditionMode('sifir')}
-            className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
-              conditionMode === 'sifir'
-                ? 'bg-[#FF7900] text-slate-950 font-bold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Sıfır
-          </button>
-          <button
-            type="button"
-            onClick={() => setConditionMode('ikinci-el')}
-            className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
-              conditionMode === 'ikinci-el'
-                ? 'bg-[#FF7900] text-slate-950 font-bold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            İkinci El
-          </button>
-        </div>
       </div>
 
-      {/* Sidebar + Product Grid Layout */}
-      <div className="mt-10 flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+      {/* İtopya-Style Left Accordion Sidebar + Right Product Grid/List */}
+      <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <CatalogFilterSidebar
           brands={brandOptions}
           selectedBrands={selectedBrands}
@@ -196,6 +461,7 @@ export function GpusPage({
           maxPrice={maxPrice}
           onChangeMinPrice={setMinPrice}
           onChangeMaxPrice={setMaxPrice}
+          pricePresets={GPU_PRICE_PRESETS}
           featureGroups={featureGroups}
           activeFilterCount={activeFilterCount}
           resultCount={gpus.length}
@@ -204,144 +470,26 @@ export function GpusPage({
           onCloseMobile={() => setMobileFilterOpen(false)}
         />
 
-        <div className="min-w-0 flex-1">
-          {/* Top Search, Mobile Filter Trigger & Sort Toolbar */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-700/60 bg-slate-800/75 p-4 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={() => setMobileFilterOpen(true)}
-              className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-4 text-xs font-bold text-slate-100 lg:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4 text-[#FF7900]" />
-              <span>Filtreler</span>
-              {activeFilterCount > 0 && (
-                <span className="rounded bg-[#FF7900] px-1.5 py-0.5 font-mono text-[11px] text-slate-950">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Model ara: RTX 4070, RX 7800 XT, Arc B580..."
-              aria-label="Ekran kartı model ara"
-              className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm text-slate-50 placeholder:text-slate-400 outline-none focus:border-[#FF7900]"
-            />
-
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              aria-label="Sıralama"
-              className="min-h-11 rounded-xl border border-slate-700 bg-slate-900 px-3.5 text-xs font-semibold text-slate-100"
-            >
-              <option value="name">Sıralama: İsim (A-Z)</option>
-              <option value="price-asc">Fiyat: En Düşük</option>
-              <option value="price-desc">Fiyat: En Yüksek</option>
-            </select>
-
-            <span className="text-xs font-semibold text-slate-400 whitespace-nowrap sm:px-2">
-              {gpus.length} ürün
-            </span>
-          </div>
-
-          <div className="mt-8 grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-            {gpus.slice(0, visibleLimit).map((gpu) => {
-              const pricing = pricingCatalog?.partsPricing[gpu.id];
-              const activePrice =
-                conditionMode === 'ikinci-el'
-                  ? pricing?.usedPriceTry ?? 0
-                  : pricing?.newPriceTry ?? 0;
-
-              return (
-                <article
-                  key={gpu.id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-all duration-200 hover:scale-[1.015] hover:border-[#FF7900]/70 hover:shadow-[0_18px_40px_-16px_rgba(0,0,0,0.65)]"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onInspectPart('gpu', gpu.id)}
-                    className="aspect-[4/3] w-full cursor-pointer overflow-hidden bg-slate-900/80 text-left"
-                  >
-                    <ProductImage
-                      imageUrl={pricingCatalog?.productImages?.[gpu.id]}
-                      category="gpu"
-                      model={gpu.model}
-                      brand={gpu.brand}
-                      className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  </button>
-
-                  <div className="flex flex-1 flex-col justify-between gap-6 p-6 sm:p-7">
-                    <h2 className="font-display text-lg font-bold leading-snug text-slate-50">
-                      <button
-                        type="button"
-                        onClick={() => onInspectPart('gpu', gpu.id)}
-                        className="line-clamp-2 cursor-pointer text-left transition-colors hover:text-[#FF7900]"
-                      >
-                        {gpu.model}
-                      </button>
-                    </h2>
-
-                    <div className="space-y-4">
-                      <div>
-                        {conditionMode === 'ikinci-el' &&
-                          pricing?.newPriceTry &&
-                          pricing.comparison.savingsPercent !== null && (
-                            <span className="mb-0.5 block font-mono text-xs text-slate-400 line-through tabular-nums">
-                              {formatTry(pricing.newPriceTry)}
-                            </span>
-                          )}
-                        <span className="block font-mono text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums text-[#FF7900]">
-                          {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => onInspectPart('gpu', gpu.id)}
-                        className="flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8C24]"
-                      >
-                        <span>Ürünü İncele</span>
-                        <ArrowRight className="h-4 w-4 shrink-0" />
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {gpus.length > visibleLimit && (
-            <div className="mt-10 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setVisibleLimit((prev) => prev + 24)}
-                className="cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-bold text-slate-100 transition-colors hover:border-[#FF7900] hover:text-[#FF7900]"
-              >
-                Daha Fazla Ekran Kartı Göster ({gpus.length - visibleLimit} ürün daha)
-              </button>
-            </div>
-          )}
-
-          {gpus.length === 0 && (
-            <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/75 py-16 text-center">
-              <Cpu className="h-10 w-10 text-slate-400" />
-              <p className="mt-3 text-sm text-slate-400">
-                Seçtiğiniz filtrelere uygun ekran kartı bulunamadı.
-              </p>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="mt-4 cursor-pointer rounded-xl bg-[#FF7900] px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-[#FF8C24]"
-                >
-                  Filtreleri Temizle
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        <CatalogProductSection
+          items={displayItems}
+          totalCount={allGpus.length}
+          pricingCatalog={pricingCatalog}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Model ara: RTX 5070, RX 9070 XT, Arc B580..."
+          sortOrder={sortOrder}
+          onSortChange={setSortOrder}
+          activeFilterCount={activeFilterCount}
+          activeFilterChips={activeFilterChips}
+          onResetFilters={handleResetFilters}
+          onOpenMobileFilters={() => setMobileFilterOpen(true)}
+          onInspectPart={onInspectPart}
+          onAddToBuild={onBuildWithGpu}
+          visibleLimit={visibleLimit}
+          onLoadMore={() => setVisibleLimit((prev) => prev + 24)}
+          loadMoreLabel="Daha Fazla Ekran Kartı Göster"
+          emptyMessage="Seçtiğiniz filtrelere uygun ekran kartı bulunamadı."
+        />
       </div>
     </div>
   );

@@ -16,8 +16,6 @@ export type UsagePurpose = 'oyun' | 'yayin' | 'tasarim' | 'ofis';
 
 export type TargetResolution = '1080p' | '1440p' | '4k';
 
-export type ComponentCondition = 'sifir' | 'ikinci-el' | 'karma';
-
 export type CpuBrandPreference = 'farketmez' | 'amd' | 'intel';
 export type GpuBrandPreference = 'farketmez' | 'nvidia' | 'amd';
 
@@ -34,7 +32,6 @@ export interface BuilderPreferences {
   purpose: UsagePurpose;
   favoriteGames: string[];
   resolution: TargetResolution;
-  condition: ComponentCondition;
   cpuBrandPref: CpuBrandPreference;
   gpuBrandPref: GpuBrandPreference;
 }
@@ -157,20 +154,17 @@ export type PartCategoryKey =
   | 'cooler';
 
 export type MarketplacePlatform =
-  | 'Sahibinden'
-  | 'Letgo'
-  | 'Facebook Marketplace'
   | 'Yetkili Sağlayıcı'
   | 'Vatan'
   | 'İtopya'
   | 'Sinerji'
-  | 'Trendyol';
+  | 'Trendyol'
+  | 'İncehesap'
+  | 'Gaming.Gen.TR'
+  | 'Hepsiburada'
+  | 'Amazon TR';
 
-export type ProductConditionGrade =
-  | 'Sıfır / Kapalı Kutu'
-  | 'Çok İyi (Faturalı)'
-  | 'İyi'
-  | 'Orta';
+export type ProductConditionGrade = 'Sıfır / Kapalı Kutu';
 
 export interface MarketplaceListing {
   id: string;
@@ -204,17 +198,6 @@ export interface MarketPriceStats {
   lastCheckedAt: string;
 }
 
-export interface ZeroVsUsedComparison {
-  newPriceTry: number | null;
-  usedPriceTry: number | null;
-  differenceTry: number | null;
-  savingsPercent: number | null;
-  newSourceLabel: string;
-  usedSourceLabel: string;
-  advantageNote: string;
-  riskNote: string;
-}
-
 export type PriceSourceType =
   | 'authorized_api'
   | 'user_listings'
@@ -224,15 +207,10 @@ export type PriceSourceType =
 export interface PartPricingInfo {
   partId: string;
   newPriceTry: number | null;
-  usedPriceTry: number | null;
   newStats: MarketPriceStats | null;
-  usedStats: MarketPriceStats | null;
   newSourceType: PriceSourceType;
-  usedSourceType: PriceSourceType;
   newSourceLabel: string;
-  usedSourceLabel: string;
   lastCheckedAt: string | null;
-  comparison: ZeroVsUsedComparison;
 }
 
 export interface DynamicCatalogProduct {
@@ -272,14 +250,12 @@ export interface ComponentSpec {
   label: string;
   model: string;
   detail: string;
-  conditionLabel: 'Sıfır' | 'İkinci El';
   priceTry: number;
   priceSourceType: PriceSourceType;
   priceSourceSummary: string;
   listingCount: number;
   excludedOutlierCount: number;
   lastCheckedAt: string | null;
-  comparison: ZeroVsUsedComparison;
   selectionReason: string;
 }
 
@@ -335,15 +311,14 @@ export interface PcBuild {
   samplePriceTry: number;
   hasRealListingData: boolean;
   allNewTotalTry: number;
-  zeroVsUsedSavingsTry: number;
-  zeroVsUsedSavingsPercent: number;
+  bundleSavingsTry: number;
+  bundleSavingsPercent: number;
   budgetStatusText: string;
   isWithinBudget: boolean;
   estimatedWattage: number | null;
   recommendedPsuWatts: number | null;
   targetResolution: TargetResolution;
   suitedPurposes: UsagePurpose[];
-  conditionSummary: string;
   selectedIds: SelectedPartIds;
   cpu: ComponentSpec;
   gpu: ComponentSpec;

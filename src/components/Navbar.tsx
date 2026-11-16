@@ -13,7 +13,6 @@ import {
   Monitor,
   Search,
   SlidersHorizontal,
-  Tag,
   X,
   Zap,
 } from 'lucide-react';
@@ -43,7 +42,6 @@ interface NavbarProps {
   onSelectCategory: (category: PartCategoryKey) => void;
   onSelectBuild: (build: PcBuild) => void;
   onSelectPart: (category: PartCategoryKey, partId: string) => void;
-  onOpenListings: () => void;
 }
 
 const NAV_ITEMS: { id: PageId; label: string }[] = [
@@ -156,7 +154,6 @@ export function Navbar({
   onSelectCategory,
   onSelectBuild,
   onSelectPart,
-  onOpenListings,
 }: NavbarProps) {
   const { user, signInWithGoogle, signOutUser } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
@@ -291,7 +288,7 @@ export function Navbar({
       if (score <= 0) continue;
 
       const pricing = pricingCatalog?.partsPricing[part.id];
-      const priceTry = pricing?.newPriceTry ?? pricing?.usedPriceTry ?? null;
+      const priceTry = pricing?.newPriceTry ?? null;
       const isBuiltinZeroCost =
         part.id === 'gpu-apu-vega7' || part.id === 'cooler-stock-wraith';
 
@@ -334,7 +331,7 @@ export function Navbar({
       if (score <= 0) continue;
 
       const pricing = pricingCatalog?.partsPricing[dyn.id];
-      const priceTry = pricing?.newPriceTry ?? pricing?.usedPriceTry ?? null;
+      const priceTry = pricing?.newPriceTry ?? null;
       items.push({
         kind: 'part',
         key: `${dyn.category}-${dyn.id}`,
@@ -589,16 +586,6 @@ export function Navbar({
 
         {/* Right: User Actions */}
         <div className="flex items-center gap-3 shrink-0">
-
-          <button
-            type="button"
-            onClick={onOpenListings}
-            className="hidden sm:inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-700/70 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition-colors hover:border-[#FF7900] hover:text-[#FF7900] whitespace-nowrap shrink-0"
-          >
-            <Tag className="h-3.5 w-3.5 text-[#FF7900]" />
-            <span>İlan Fiyatları</span>
-          </button>
-
           {user ? (
             <button
               type="button"
@@ -673,17 +660,6 @@ export function Navbar({
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                onOpenListings();
-              }}
-              className="mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-[#080B12] px-4 py-2.5 text-sm font-semibold text-[#FF7900]"
-            >
-              <Tag className="h-4 w-4" />
-              <span>İlan Fiyatları ve Kaynaklar</span>
-            </button>
 
             {user ? (
               <button

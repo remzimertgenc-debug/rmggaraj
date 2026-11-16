@@ -20,14 +20,12 @@ import {
   ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Tag,
   Wrench,
   X,
 } from 'lucide-react';
 import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import {
   assembleBuildFromIds,
-  CONDITION_OPTIONS,
   CPU_BRAND_OPTIONS,
   formatTry,
   generateCompatibleCatalogBuilds,
@@ -52,7 +50,6 @@ import { ProductImage } from './ProductImage';
 import {
   BasePartSpec,
   BuilderPreferences,
-  ComponentCondition,
   CpuBrandPreference,
   GpuBrandPreference,
   PartCategoryKey,
@@ -74,7 +71,6 @@ interface BuilderPageProps {
   onResetAll: () => void;
   onInspectBuild: (build: PcBuild) => void;
   onInspectPart?: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
 type CategorySectionMeta = {
@@ -183,22 +179,11 @@ const CATEGORY_SECTIONS: CategorySectionMeta[] = [
   },
 ];
 
-function getPartPriceForCondition(
+function getPartPrice(
   partId: string,
-  field: keyof SelectedPartIds,
-  condition: ComponentCondition,
   catalog: PricingCatalogResponse | null
 ): number {
-  const info = catalog?.partsPricing[partId];
-  if (!info) return 0;
-  const useUsed =
-    condition === 'ikinci-el'
-      ? true
-      : condition === 'karma'
-        ? field === 'cpuId' || field === 'gpuId'
-        : false;
-  if (useUsed && info.usedPriceTry !== null) return info.usedPriceTry;
-  return info.newPriceTry ?? 0;
+  return catalog?.partsPricing[partId]?.newPriceTry ?? 0;
 }
 
 type BuilderMode = 'wizard' | 'catalog';
@@ -218,7 +203,6 @@ export function BuilderPage({
   onResetAll,
   onInspectBuild,
   onInspectPart,
-  onManageListings,
 }: BuilderPageProps) {
   const [builderMode, setBuilderMode] = useState<BuilderMode>('wizard');
   const [activeStepIndex, setActiveStepIndex] = useState<number>(() => {
@@ -599,7 +583,6 @@ export function BuilderPage({
                 purpose: 'oyun',
                 favoriteGames: ['Valorant', 'Cyberpunk 2077', 'Red Dead Redemption 2'],
                 resolution: '1440p',
-                condition: 'sifir',
                 cpuBrandPref: 'farketmez',
                 gpuBrandPref: 'farketmez',
               };
@@ -968,7 +951,7 @@ export function BuilderPage({
                   ) : (
                     <ChevronDown className="h-4 w-4" />
                   )}
-                  <span>İsteğe Bağlı: Marka ve Sıfır / İkinci El Tercihi</span>
+                  <span>İsteğe Bağlı: İşlemci ve Ekran Kartı Marka Tercihi</span>
                 </button>
 
                 <button
@@ -981,29 +964,7 @@ export function BuilderPage({
               </div>
 
               {showAdvancedPrefs && (
-                <div className="mt-4 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-[#080B12] p-4 sm:grid-cols-3">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-semibold text-[#94A3B8]">
-                      Parça Durumu
-                    </span>
-                    <select
-                      value={draftCatalogPrefs.condition}
-                      onChange={(e) =>
-                        setDraftCatalogPrefs((prev) => ({
-                          ...prev,
-                          condition: e.target.value as ComponentCondition,
-                        }))
-                      }
-                      className="h-10 w-full rounded-lg border border-slate-700 bg-[#111827] px-3 text-xs text-[#F5F7FA]"
-                    >
-                      {CONDITION_OPTIONS.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.title}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
+                <div className="mt-4 grid grid-cols-1 gap-4 rounded-lg border border-slate-800 bg-[#080B12] p-4 sm:grid-cols-2">
                   <label className="block">
                     <span className="mb-1 block text-xs font-semibold text-[#94A3B8]">
                       İşlemci Tercihi
@@ -1304,12 +1265,7 @@ export function BuilderPage({
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="font-mono text-lg font-bold tabular-nums text-[#FF7900]">
                     {(() => {
-                      const p = getPartPriceForCondition(
-                        selectedActiveItem.id,
-                        activeSection.field,
-                        preferences.condition,
-                        pricingCatalog
-                      );
+                      const p = getPartPrice(selectedActiveItem.id, pricingCatalog);
                       if (p > 0) return formatTry(p);
                       return selectedActiveItem.id === 'gpu-apu-vega7' ||
                         selectedActiveItem.id === 'cooler-stock-wraith'
@@ -1421,12 +1377,7 @@ export function BuilderPage({
                         {searchMatches.map((match) => {
                           const matchSelected =
                             selectedIds[activeSection.field] === match.id;
-                          const matchPrice = getPartPriceForCondition(
-                            match.id,
-                            activeSection.field,
-                            preferences.condition,
-                            pricingCatalog
-                          );
+                          const matchPrice = getPartPrice(match.id, pricingCatalog);
                           const { isIncompatible: matchIncompat, reason: matchReason } =
                             checkCandidateCompatibility(activeSection.field, match.id);
                           const matchBlocked = compatLock && matchIncompat;
@@ -1556,12 +1507,7 @@ export function BuilderPage({
           <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {visibleItems.map((item) => {
               const isSelected = selectedIds[activeSection.field] === item.id;
-              const price = getPartPriceForCondition(
-                item.id,
-                activeSection.field,
-                preferences.condition,
-                pricingCatalog
-              );
+              const price = getPartPrice(item.id, pricingCatalog);
               const { isIncompatible, reason } = checkCandidateCompatibility(
                 activeSection.field,
                 item.id
@@ -1768,32 +1714,17 @@ export function BuilderPage({
                   {currentBuild.systemName}
                 </h2>
               </div>
-              <select
-                value={preferences.condition}
-                onChange={(e) =>
-                  onChangePreferences({
-                    ...preferences,
-                    condition: e.target.value as ComponentCondition,
-                  })
-                }
-                aria-label="Fiyatlandırma koşulu"
-                className="h-9 rounded-lg border border-slate-700 bg-[#080B12] px-2.5 text-xs font-medium text-[#F5F7FA]"
-              >
-                <option value="sifir">Sıfır</option>
-                <option value="karma">Karma</option>
-                <option value="ikinci-el">İkinci El</option>
-              </select>
             </div>
 
             {/* Big Total Price */}
             <div className="border-b border-slate-800 py-4">
-              {currentBuild.zeroVsUsedSavingsTry > 0 && (
+              {currentBuild.bundleSavingsTry > 0 && (
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="font-mono text-[#94A3B8] line-through tabular-nums">
                     {formatTry(currentBuild.allNewTotalTry)}
                   </span>
                   <span className="font-mono font-semibold text-[#FF7900]">
-                    -%{currentBuild.zeroVsUsedSavingsPercent} Tasarruf
+                    -%{currentBuild.bundleSavingsPercent} Tasarruf
                   </span>
                 </div>
               )}
@@ -1947,34 +1878,23 @@ export function BuilderPage({
                 <ArrowUpRight className="h-4 w-4" />
               </button>
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <button
-                  type="button"
-                  onClick={handleCopyList}
-                  className="flex min-h-[40px] cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-[#080B12] px-3 py-2 text-xs font-medium text-[#F5F7FA] hover:border-slate-500"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 text-[#246BFD]" />
-                      <span>Kopyalandı</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 text-[#94A3B8]" />
-                      <span>Listeyi Kopyala</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => onManageListings()}
-                  className="flex min-h-[40px] cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-[#080B12] px-3 py-2 text-xs font-medium text-[#FF7900] hover:border-[#FF7900]"
-                >
-                  <Tag className="h-3.5 w-3.5" />
-                  <span>İlan Fiyatları</span>
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleCopyList}
+                className="flex min-h-[40px] w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-[#080B12] px-3 py-2 text-xs font-medium text-[#F5F7FA] hover:border-slate-500"
+              >
+                {copied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 text-[#246BFD]" />
+                    <span>Kopyalandı</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 text-[#94A3B8]" />
+                    <span>Listeyi Kopyala</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </aside>

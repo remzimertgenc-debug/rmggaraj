@@ -47,7 +47,7 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
     const items: DealItem[] = [];
     const seen = new Set<string>();
 
-    // 1) Öncelik: Veritabanındaki gerçek mağaza / ikinci el fiyat farkı sunan tekil donanımlar
+    // 1) Öncelik: Veritabanındaki mağazalar arası en düşük fiyat farkı sunan tekil donanımlar
     for (const entry of entries) {
       const { category, part } = entry;
       const pricing = partsPricing[part.id];
@@ -78,26 +78,6 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
           continue;
         }
       }
-
-      if (
-        pricing.newPriceTry &&
-        pricing.usedPriceTry &&
-        pricing.newPriceTry > pricing.usedPriceTry &&
-        (pricing.comparison.savingsPercent ?? 0) >= 12
-      ) {
-        seen.add(part.id);
-        items.push({
-          id: part.id,
-          category,
-          brand: part.brand,
-          name: part.model,
-          imageUrl: productImages[part.id] ?? null,
-          oldPriceTry: pricing.newPriceTry,
-          dealPriceTry: pricing.usedPriceTry,
-          discountPercent: pricing.comparison.savingsPercent ?? 12,
-          sourceLabel: 'İkinci El Fırsatı',
-        });
-      }
     }
 
     // 2) Katalogdan öne çıkan indirimli tekil donanımlar (fiyat her zaman dolu)
@@ -107,7 +87,7 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
       const entry = entries.find((e) => e.part.id === preset.id);
       if (!entry) continue;
       const pricing = partsPricing[entry.part.id];
-      const livePrice = pricing?.newPriceTry ?? pricing?.usedPriceTry ?? null;
+      const livePrice = pricing?.newPriceTry ?? null;
       const dealPriceTry = livePrice && livePrice > 0 ? livePrice : preset.fallbackPriceTry;
 
       seen.add(entry.part.id);
@@ -130,7 +110,7 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
       if (items.length >= 10) break;
       if (seen.has(dyn.id)) continue;
       const pricing = partsPricing[dyn.id];
-      const basePrice = pricing?.newPriceTry ?? pricing?.usedPriceTry ?? null;
+      const basePrice = pricing?.newPriceTry ?? null;
       if (!basePrice || basePrice <= 0) continue;
 
       seen.add(dyn.id);

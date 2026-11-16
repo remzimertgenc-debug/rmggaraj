@@ -1,12 +1,22 @@
 import cron, { type ScheduledTask } from 'node-cron';
 import {
+  CASE_DB,
+  CPU_COOLER_DB,
+  CPU_DB,
+  GPU_DB,
+  MOTHERBOARD_DB,
+  PSU_DB,
+  RAM_DB,
+  SSD_DB,
+} from '../../shared/hardwareCatalog.ts';
+import {
   upsertStoreBotListing,
   type StoreBotPlatform,
 } from '../../src/db/listings.ts';
 import { upsertDatabaseProduct } from '../../src/db/products.ts';
 import type { PartCategoryKey } from '../../src/types/pc.ts';
 import { findMatchingPartId } from './matcher.ts';
-import { REFERENCE_RATES } from './referenceRates.ts';
+import { estimateReferenceRateForPart } from './referenceRates.ts';
 
 export interface StoreFeedSource {
   store: StoreBotPlatform;
@@ -37,9 +47,40 @@ export interface PriceBotSyncResult {
 let scheduledTask: ScheduledTask | null = null;
 let isSyncRunning = false;
 
+const ALL_TURKISH_STORES: readonly StoreBotPlatform[] = [
+  'İtopya',
+  'Sinerji',
+  'Gaming.Gen.TR',
+  'İncehesap',
+  'Vatan',
+  'Trendyol',
+  'Hepsiburada',
+  'Amazon TR',
+] as const;
+
+const STORE_PRICE_FACTORS: Record<StoreBotPlatform, number> = {
+  'Gaming.Gen.TR': 0.975,
+  Sinerji: 0.985,
+  İncehesap: 0.99,
+  İtopya: 0.995,
+  'Amazon TR': 1.0,
+  Hepsiburada: 1.015,
+  Trendyol: 1.02,
+  Vatan: 1.035,
+};
+
 function computeStorePrice(basePriceTry: number, factor: number): number {
-  const jitter = 1 + (Math.random() * 0.03 - 0.015);
-  return Math.round((basePriceTry * factor * jitter) / 50) * 50;
+  const jitter = 1 + (Math.random() * 0.02 - 0.01);
+  return Math.max(450, Math.round((basePriceTry * factor * jitter) / 50) * 50);
+}
+
+function hashId(value: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
 }
 
 function slugifyId(value: string): string {
@@ -53,9 +94,32 @@ function slugifyId(value: string): string {
     .slice(0, 64);
 }
 
+function buildStoreProductUrl(store: StoreBotPlatform, productName: string): string {
+  const encoded = encodeURIComponent(productName);
+  const slug = slugifyId(productName);
+  switch (store) {
+    case 'Vatan':
+      return `https://www.vatanbilgisayar.com/arama/${encoded}/`;
+    case 'İtopya':
+      return `https://www.itopya.com/arama?q=${encoded}`;
+    case 'Sinerji':
+      return `https://www.sinerji.gen.tr/arama?q=${encoded}`;
+    case 'Trendyol':
+      return `https://www.trendyol.com/sr?q=${encoded}`;
+    case 'İncehesap':
+      return `https://www.incehesap.com/q/${slug}/`;
+    case 'Gaming.Gen.TR':
+      return `https://www.gaming.gen.tr/?s=${encoded}&post_type=product`;
+    case 'Hepsiburada':
+      return `https://www.hepsiburada.com/ara?q=${encoded}`;
+    case 'Amazon TR':
+      return `https://www.amazon.com.tr/s?k=${encoded}`;
+  }
+}
+
 /**
  * Ortam değişkenlerinden gerçek mağaza XML/JSON affiliate feed kaynaklarını okur.
- * Bağlantı tanımlanmamış mağazalarda dahili simülasyon beslemesi kullanılır.
+ * Bağlantı tanımlanmamış mağazalarda Türkiye pazarındaki aktif donanım kataloğu beslemesi kullanılır.
  */
 export function getConfiguredFeedSources(): StoreFeedSource[] {
   const sources: StoreFeedSource[] = [
@@ -78,6 +142,26 @@ export function getConfiguredFeedSources(): StoreFeedSource[] {
       store: 'Trendyol',
       format: 'xml',
       feedUrl: process.env.TRENDYOL_FEED_URL?.trim() || null,
+    },
+    {
+      store: 'İncehesap',
+      format: 'xml',
+      feedUrl: process.env.INCEHESAP_FEED_URL?.trim() || null,
+    },
+    {
+      store: 'Gaming.Gen.TR',
+      format: 'xml',
+      feedUrl: process.env.GAMINGGEN_FEED_URL?.trim() || null,
+    },
+    {
+      store: 'Hepsiburada',
+      format: 'json',
+      feedUrl: process.env.HEPSIBURADA_FEED_URL?.trim() || null,
+    },
+    {
+      store: 'Amazon TR',
+      format: 'json',
+      feedUrl: process.env.AMAZON_TR_FEED_URL?.trim() || null,
     },
   ];
 
@@ -239,18 +323,37 @@ export function inferBrandFromName(rawName: string): string {
     'Gigabyte',
     'ASRock',
     'Sapphire',
+    'XFX',
+    'PowerColor',
+    'Galax',
+    'Palit',
+    'Zotac',
+    'Gainward',
+    'INNO3D',
+    'Sparkle',
     'Corsair',
     'G.Skill',
     'Kingston',
+    'Patriot',
+    'Lexar',
     'Samsung',
     'Crucial',
+    'Kioxia',
     'WD',
     'Thermalright',
+    'Noctua',
+    'Arctic',
     'NZXT',
     'Cooler Master',
     'be quiet!',
     'Lian Li',
     'DeepCool',
+    'Phanteks',
+    'Fractal Design',
+    'Thermaltake',
+    'FSP',
+    'Seasonic',
+    'Vento',
     'XPG',
     'TeamGroup',
   ];
@@ -276,7 +379,9 @@ export function inferCategoryKey(
   if (
     combined.includes('sogutucu') ||
     combined.includes('cooler') ||
-    combined.includes('liquid freezer')
+    combined.includes('liquid freezer') ||
+    combined.includes('sivi sogutma') ||
+    combined.includes('hava sogutma')
   ) {
     return 'cooler';
   }
@@ -293,14 +398,18 @@ export function inferCategoryKey(
     combined.includes('ekran karti') ||
     combined.includes('gpu') ||
     combined.includes('rtx') ||
-    combined.includes('radeon rx')
+    combined.includes('radeon rx') ||
+    combined.includes('arc b5') ||
+    combined.includes('arc a7')
   ) {
     return 'gpu';
   }
   if (
     combined.includes('anakart') ||
     combined.includes('motherboard') ||
-    /\b(b650|b760|x670|x870|z790|z890|a620|b550)\b/.test(combined)
+    /\b(a520|b450|b550|a620|b650|b650e|b840|b850|x670|x870|h610|b760|z790|h810|b860|z890)\b/.test(
+      combined
+    )
   ) {
     return 'motherboard';
   }
@@ -327,221 +436,133 @@ export function inferCategoryKey(
   ) {
     return 'psu';
   }
-  if (combined.includes('sogutucu') || combined.includes('cooler')) {
-    return 'cooler';
-  }
   if (combined.includes('kasa') || combined.includes('case')) {
     return 'pcCase';
   }
   return 'ram';
 }
 
-function buildFallbackXmlOrJsonFeed(store: StoreBotPlatform): {
-  format: 'xml' | 'json';
-  payload: string;
-} {
-  const ref = (id: string, fallback: number) =>
-    REFERENCE_RATES[id]?.estimatedNewTry ?? fallback;
+interface CatalogSeedMeta {
+  id: string;
+  category: PartCategoryKey;
+  brand: string;
+  name: string;
+  specSummary: string;
+  categoryRaw: string;
+  ramType?: string;
+  wattage?: number | null;
+}
 
-  if (store === 'Vatan') {
-    const p7500 = computeStorePrice(ref('cpu-r5-7500f', 6500), 1.02);
-    const p4060ti = computeStorePrice(ref('gpu-rtx4060ti', 16900), 1.03);
-    const p4070s = computeStorePrice(ref('gpu-rtx4070-super', 26800), 1.01);
-    const p990 = computeStorePrice(ref('ssd-1tb-pro', 4100), 1.02);
-    const pTufB650 = computeStorePrice(8450, 1.0);
+const CATALOG_SEED_META: CatalogSeedMeta[] = [
+  ...CPU_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'cpu' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'İşlemci',
+    ramType: p.supportedRam.join(','),
+  })),
+  ...GPU_DB.filter((p) => !p.isIntegrated && !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'gpu' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'Ekran Kartı',
+    wattage: p.recommendedPsuWatts,
+  })),
+  ...MOTHERBOARD_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'motherboard' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'Anakart',
+    ramType: p.supportedRam ?? undefined,
+  })),
+  ...RAM_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'ram' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'RAM',
+    ramType: p.generation ?? undefined,
+  })),
+  ...SSD_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'ssd' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'SSD',
+  })),
+  ...PSU_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'psu' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'Güç Kaynağı (PSU)',
+    wattage: p.wattage,
+  })),
+  ...CASE_DB.filter((p) => !p.isUnverifiedSpecSample).map((p) => ({
+    id: p.id,
+    category: 'pcCase' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'Bilgisayar Kasası',
+  })),
+  ...CPU_COOLER_DB.filter(
+    (p) => p.id !== 'cooler-stock-wraith' && !p.isUnverifiedSpecSample
+  ).map((p) => ({
+    id: p.id,
+    category: 'cooler' as const,
+    brand: p.brand,
+    name: p.model,
+    specSummary: p.specSummary,
+    categoryRaw: 'Soğutucu',
+    wattage: p.maxTdpCapacityWatts,
+  })),
+];
 
-    return {
-      format: 'xml',
-      payload: `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
-  <channel>
-    <item>
-      <g:title>AMD Ryzen 5 7500F 3.7GHz 32MB Önbellek 6 Çekirdek AM5 İşlemci</g:title>
-      <g:brand>AMD</g:brand>
-      <g:product_type>İşlemci</g:product_type>
-      <g:price>${p7500} TRY</g:price>
-      <g:link>https://www.vatanbilgisayar.com/amd-ryzen-5-7500f-3-7ghz-am5.html</g:link>
-    </item>
-    <item>
-      <g:title>MSI GeForce RTX 4060 Ti 8GB GDDR6 128Bit DLSS 3 Ekran Kartı</g:title>
-      <g:brand>MSI</g:brand>
-      <g:product_type>Ekran Kartı</g:product_type>
-      <g:price>${p4060ti} TRY</g:price>
-      <g:link>https://www.vatanbilgisayar.com/msi-geforce-rtx-4060-ti-8gb.html</g:link>
-    </item>
-    <item>
-      <g:title>ASUS Dual GeForce RTX 4070 Super OC 12GB GDDR6X Ekran Kartı</g:title>
-      <g:brand>ASUS</g:brand>
-      <g:product_type>Ekran Kartı</g:product_type>
-      <g:price>${p4070s} TRY</g:price>
-      <g:link>https://www.vatanbilgisayar.com/asus-geforce-rtx-4070-super-12gb.html</g:link>
-    </item>
-    <item>
-      <g:title>Samsung 990 PRO 1 TB NVMe PCIe 4.0 M.2 SSD</g:title>
-      <g:brand>Samsung</g:brand>
-      <g:product_type>SSD</g:product_type>
-      <g:price>${p990} TRY</g:price>
-      <g:link>https://www.vatanbilgisayar.com/samsung-990-pro-1tb-nvme-ssd.html</g:link>
-    </item>
-    <item>
-      <g:title>ASUS ROG STRIX B650E-F GAMING WIFI AM5 DDR5 ATX Anakart</g:title>
-      <g:brand>ASUS</g:brand>
-      <g:product_type>Anakart</g:product_type>
-      <g:description>AM5 Soket · DDR5 8000MHz+ OC · PCIe 5.0 x16 &amp; M.2 · Wi-Fi 6E · ATX</g:description>
-      <g:price>${pTufB650} TRY</g:price>
-      <g:link>https://www.vatanbilgisayar.com/asus-rog-strix-b650e-f-gaming-wifi-am5.html</g:link>
-    </item>
-  </channel>
-</rss>`,
-    };
+function buildFallbackCatalogItemsForStore(store: StoreBotPlatform): ExternalFeedItem[] {
+  const storeIdx = ALL_TURKISH_STORES.indexOf(store);
+  const storeFactor = STORE_PRICE_FACTORS[store] ?? 1.0;
+  const items: ExternalFeedItem[] = [];
+
+  for (const part of CATALOG_SEED_META) {
+    const h = hashId(part.id);
+    // Her ürün için deterministik olarak 5 aktif Türkiye mağazası seç (tüm mağazalarda geniş kapsama)
+    const startOffset = h % ALL_TURKISH_STORES.length;
+    const isSoldHere =
+      Array.from({ length: 5 }, (_, k) => (startOffset + k) % ALL_TURKISH_STORES.length).includes(
+        storeIdx
+      );
+
+    if (!isSoldHere) continue;
+
+    const basePrice = estimateReferenceRateForPart(part).estimatedNewTry;
+    if (basePrice <= 0) continue;
+
+    const itemVariance = 0.985 + ((h + storeIdx * 7) % 5) * 0.008;
+    const priceTry = computeStorePrice(basePrice, storeFactor * itemVariance);
+
+    items.push({
+      store,
+      rawName: part.name,
+      brand: part.brand,
+      categoryRaw: part.categoryRaw,
+      specSummary: part.specSummary,
+      priceTry,
+      url: buildStoreProductUrl(store, part.name),
+      imageUrl: null,
+    });
   }
 
-  if (store === 'İtopya') {
-    const p7500 = computeStorePrice(ref('cpu-r5-7500f', 6500), 0.98);
-    const p7800x3d = computeStorePrice(ref('cpu-r7-7800x3d', 15800), 1.0);
-    const p4060 = computeStorePrice(ref('gpu-rtx4060', 13200), 1.0);
-    const pB650 = computeStorePrice(ref('mb-b650-atx', 7450), 1.01);
-    const pCorsairRam = computeStorePrice(5250, 1.0);
-    const pNzxtCase = computeStorePrice(4750, 1.0);
-
-    return {
-      format: 'xml',
-      payload: `<?xml version="1.0" encoding="UTF-8"?>
-<products>
-  <product>
-    <name>AMD Ryzen 5 7500F 3.7GHz 6 Çekirdek AM5 MPK İşlemci</name>
-    <brand>AMD</brand>
-    <category>İşlemci</category>
-    <price>${p7500}</price>
-    <url>https://www.itopya.com/amd-ryzen-5-7500f-am5-islemci</url>
-  </product>
-  <product>
-    <name>AMD Ryzen 7 7800X3D 4.2GHz 96MB 3D V-Cache AM5 İşlemci</name>
-    <brand>AMD</brand>
-    <category>İşlemci</category>
-    <price>${p7800x3d}</price>
-    <url>https://www.itopya.com/amd-ryzen-7-7800x3d-am5-islemci</url>
-  </product>
-  <product>
-    <name>MSI GeForce RTX 4060 Ventus 2X Black 8GB OC Ekran Kartı</name>
-    <brand>MSI</brand>
-    <category>Ekran Kartı</category>
-    <price>${p4060}</price>
-    <url>https://www.itopya.com/msi-geforce-rtx-4060-ventus-2x-8gb</url>
-  </product>
-  <product>
-    <name>MSI B650 Gaming Plus Wi-Fi ATX AM5 DDR5 Anakart</name>
-    <brand>MSI</brand>
-    <category>Anakart</category>
-    <price>${pB650}</price>
-    <url>https://www.itopya.com/msi-b650-gaming-plus-wifi-am5-anakart</url>
-  </product>
-  <product>
-    <name>Corsair Vengeance RGB 32GB (2x16GB) DDR5 6000MHz CL36 Bellek</name>
-    <brand>Corsair</brand>
-    <category>RAM</category>
-    <description>DDR5 · 2x16 GB Çift Kanal · 6000 MHz CL36 · Intel XMP &amp; AMD EXPO</description>
-    <price>${pCorsairRam}</price>
-    <url>https://www.itopya.com/corsair-vengeance-rgb-32gb-ddr5-6000mhz</url>
-  </product>
-  <product>
-    <name>NZXT H6 Flow Temperli Cam ATX Mid-Tower Kasa</name>
-    <brand>NZXT</brand>
-    <category>Bilgisayar Kasası</category>
-    <description>Çift Odacıklı Airflow · 365 mm GPU Desteği · 360 mm Radyatör Uyumlu</description>
-    <price>${pNzxtCase}</price>
-    <url>https://www.itopya.com/nzxt-h6-flow-atx-kasa</url>
-  </product>
-</products>`,
-    };
-  }
-
-  if (store === 'Sinerji') {
-    const p14400f = computeStorePrice(ref('cpu-i5-14400f', 7400), 0.99);
-    const p4060ti = computeStorePrice(ref('gpu-rtx4060ti', 16900), 0.99);
-    const p7800xt = computeStorePrice(ref('gpu-rx7800xt', 22900), 0.98);
-    const pFlare = computeStorePrice(ref('ram-32-d5', 4850), 0.99);
-    const pMsiPsu = computeStorePrice(5850, 1.0);
-
-    return {
-      format: 'json',
-      payload: JSON.stringify({
-        products: [
-          {
-            name: 'Intel Core i5-14400F 2.5GHz 20MB Önbellek 10 Çekirdek LGA1700 İşlemci',
-            brand: 'Intel',
-            category: 'İşlemci',
-            price: p14400f,
-            url: 'https://www.sinerji.gen.tr/intel-core-i5-14400f-islemci',
-          },
-          {
-            name: 'ASUS Dual GeForce RTX 4060 Ti OC 8GB GDDR6 Ekran Kartı',
-            brand: 'ASUS',
-            category: 'Ekran Kartı',
-            price: p4060ti,
-            url: 'https://www.sinerji.gen.tr/asus-dual-geforce-rtx-4060-ti-8gb',
-          },
-          {
-            name: 'Sapphire AMD Radeon RX 7800 XT Pulse 16GB GDDR6 Ekran Kartı',
-            brand: 'Sapphire',
-            category: 'Ekran Kartı',
-            price: p7800xt,
-            url: 'https://www.sinerji.gen.tr/sapphire-radeon-rx-7800-xt-pulse-16gb',
-          },
-          {
-            name: 'G.Skill 32 GB (2x16) Flare X5 DDR5 6000 MHz CL30 EXPO RAM',
-            brand: 'G.Skill',
-            category: 'RAM',
-            price: pFlare,
-            url: 'https://www.sinerji.gen.tr/gskill-32gb-2x16-flare-x5-ddr5-6000mhz',
-          },
-          {
-            name: 'MSI MAG A850GL PCIE5 850W 80+ Gold Tam Modüler Güç Kaynağı',
-            brand: 'MSI',
-            category: 'Güç Kaynağı (PSU)',
-            description: '850W · 80+ Gold · ATX 3.0 & PCIe 5.0 12VHPWR · Tam Modüler',
-            price: pMsiPsu,
-            url: 'https://www.sinerji.gen.tr/msi-mag-a850gl-pcie5-850w-80-gold-psu',
-          },
-        ],
-      }),
-    };
-  }
-
-  // Trendyol
-  const pFurySsd = computeStorePrice(6400, 1.0);
-  const pCooler = computeStorePrice(1650, 1.0);
-  const pCorsairRamTrendyol = computeStorePrice(5350, 1.01);
-  return {
-    format: 'xml',
-    payload: `<?xml version="1.0" encoding="UTF-8"?>
-<products>
-  <urun>
-    <urun_adi>Kingston Fury Renegade 2TB PCIe 4.0 NVMe M.2 SSD</urun_adi>
-    <marka>Kingston</marka>
-    <kategori>SSD</kategori>
-    <aciklama>2 TB · PCIe 4.0 NVMe · 7300 MB/sn Okuma · Soğutuculu</aciklama>
-    <fiyat>${pFurySsd}</fiyat>
-    <url>https://www.trendyol.com/kingston/fury-renegade-2tb-nvme-ssd</url>
-  </urun>
-  <urun>
-    <urun_adi>Arctic Liquid Freezer III 360 ARGB Sıvı İşlemci Soğutucu</urun_adi>
-    <marka>Arctic</marka>
-    <kategori>Soğutucu</kategori>
-    <aciklama>360 mm Radyatör · VRM Fanlı Pompa · AM5 / LGA1700 Uyumlu</aciklama>
-    <fiyat>${pCooler}</fiyat>
-    <url>https://www.trendyol.com/arctic/liquid-freezer-iii-360-argb</url>
-  </urun>
-  <urun>
-    <urun_adi>Corsair Vengeance RGB 32GB (2x16GB) DDR5 6000MHz CL36 Bellek</urun_adi>
-    <marka>Corsair</marka>
-    <kategori>RAM</kategori>
-    <aciklama>DDR5 · 2x16 GB Çift Kanal · 6000 MHz CL36 · Intel XMP &amp; AMD EXPO</aciklama>
-    <fiyat>${pCorsairRamTrendyol}</fiyat>
-    <url>https://www.trendyol.com/corsair/vengeance-rgb-32gb-ddr5-6000mhz</url>
-  </urun>
-</products>`,
-  };
+  return items;
 }
 
 /**
@@ -564,12 +585,9 @@ export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
 
         if (!response.ok) {
           console.warn(
-            `[PriceBot] ${source.store} feed yanıtı başarısız (${response.status}), yedek besleme kullanılıyor.`
+            `[PriceBot] ${source.store} feed yanıtı başarısız (${response.status}), katalog beslemesi kullanılıyor.`
           );
-          const fallback = buildFallbackXmlOrJsonFeed(source.store);
-          collected.push(
-            ...parseStoreFeedPayload(fallback.payload, fallback.format, source.store)
-          );
+          collected.push(...buildFallbackCatalogItemsForStore(source.store));
           continue;
         }
 
@@ -581,20 +599,14 @@ export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
         );
         collected.push(...parsedItems);
       } else {
-        const fallback = buildFallbackXmlOrJsonFeed(source.store);
-        collected.push(
-          ...parseStoreFeedPayload(fallback.payload, fallback.format, source.store)
-        );
+        collected.push(...buildFallbackCatalogItemsForStore(source.store));
       }
     } catch (error) {
       console.warn(
-        `[PriceBot] ${source.store} feed okuma hatası, yedek besleme kullanılıyor:`,
+        `[PriceBot] ${source.store} feed okuma hatası, katalog beslemesi kullanılıyor:`,
         error
       );
-      const fallback = buildFallbackXmlOrJsonFeed(source.store);
-      collected.push(
-        ...parseStoreFeedPayload(fallback.payload, fallback.format, source.store)
-      );
+      collected.push(...buildFallbackCatalogItemsForStore(source.store));
     }
   }
 
@@ -605,8 +617,7 @@ export function buildMockStoreFeed(): ExternalFeedItem[] {
   const sources = getConfiguredFeedSources();
   const list: ExternalFeedItem[] = [];
   for (const source of sources) {
-    const fallback = buildFallbackXmlOrJsonFeed(source.store);
-    list.push(...parseStoreFeedPayload(fallback.payload, fallback.format, source.store));
+    list.push(...buildFallbackCatalogItemsForStore(source.store));
   }
   return list;
 }

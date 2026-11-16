@@ -1,7 +1,6 @@
 import {
   BuilderPreferences,
   BuildTier,
-  ComponentCondition,
   ComponentSpec,
   CoolerPart,
   CpuBrandPreference,
@@ -154,32 +153,10 @@ export const RESOLUTION_OPTIONS: {
   },
 ];
 
-export const CONDITION_OPTIONS: {
-  id: ComponentCondition;
-  title: string;
-  subtitle: string;
-}[] = [
-  {
-    id: 'sifir',
-    title: 'Sıfır Parçalar',
-    subtitle: 'Tamamı yeni nesil bileşen fiyatlandırması',
-  },
-  {
-    id: 'karma',
-    title: 'Karma (Sıfır + İkinci El)',
-    subtitle: 'CPU ve GPU ikinci el fiyat avantajı, SSD ve PSU sıfır',
-  },
-  {
-    id: 'ikinci-el',
-    title: 'İkinci El Odaklı',
-    subtitle: 'Maksimum bütçe tasarrufu için ikinci el ağırlıklı kurgu',
-  },
-];
-
 export const CPU_BRAND_OPTIONS: { id: CpuBrandPreference; title: string; subtitle: string }[] = [
   { id: 'farketmez', title: 'Farketmez', subtitle: 'Bütçe ve performansa göre en iyi eşleşme' },
   { id: 'amd', title: 'AMD Ryzen', subtitle: 'AM4 / AM5 platform ve 3D V-Cache odağı' },
-  { id: 'intel', title: 'Intel Core', subtitle: 'LGA1700 çok çekirdekli hibrit mimari' },
+  { id: 'intel', title: 'Intel Core', subtitle: 'LGA1700 / LGA1851 hibrit ve Core Ultra mimari' },
 ];
 
 export const GPU_BRAND_OPTIONS: { id: GpuBrandPreference; title: string; subtitle: string }[] = [
@@ -196,13 +173,10 @@ export function formatTry(amount: number): string {
 
 function getPricingForPart(
   partId: string,
-  catalog: PricingCatalogResponse | null,
-  condition: ComponentCondition,
-  category: PartCategoryKey
+  catalog: PricingCatalogResponse | null
 ): {
   price: number;
   newPrice: number;
-  conditionLabel: 'Sıfır' | 'İkinci El';
   sourceType: PriceSourceType;
   sourceSummary: string;
   listingCount: number;
@@ -211,18 +185,11 @@ function getPricingForPart(
   info: PartPricingInfo | undefined;
 } {
   const info = catalog?.partsPricing[partId];
-  const useUsed =
-    condition === 'ikinci-el'
-      ? true
-      : condition === 'karma'
-        ? category === 'cpu' || category === 'gpu'
-        : false;
 
   if (!info) {
     return {
       price: 0,
       newPrice: 0,
-      conditionLabel: useUsed ? 'İkinci El' : 'Sıfır',
       sourceType: 'unavailable',
       sourceSummary: 'Fiyat veri kaynağı yüklenmedi',
       listingCount: 0,
@@ -233,26 +200,10 @@ function getPricingForPart(
   }
 
   const newPrice = info.newPriceTry ?? 0;
-  if (useUsed && info.usedPriceTry !== null) {
-    const stats = info.usedStats;
-    return {
-      price: info.usedPriceTry,
-      newPrice,
-      conditionLabel: 'İkinci El',
-      sourceType: info.usedSourceType,
-      sourceSummary: info.usedSourceLabel,
-      listingCount: stats?.listingCount ?? 0,
-      excludedOutlierCount: stats?.excludedOutlierCount ?? 0,
-      lastCheckedAt: stats?.lastCheckedAt ?? info.lastCheckedAt,
-      info,
-    };
-  }
-
   const stats = info.newStats;
   return {
     price: newPrice,
     newPrice,
-    conditionLabel: 'Sıfır',
     sourceType: info.newSourceType,
     sourceSummary: info.newSourceLabel,
     listingCount: stats?.listingCount ?? 0,
@@ -418,21 +369,21 @@ export function assembleBuildFromIds(
   const cooler =
     merged.coolers.find((p) => p.id === ids.coolerId) ?? CPU_COOLER_DB[0];
 
-  const cpuP = getPricingForPart(cpu.id, catalog, prefs.condition, 'cpu');
-  const gpuP = getPricingForPart(gpu.id, catalog, prefs.condition, 'gpu');
-  const mbP = getPricingForPart(motherboard.id, catalog, prefs.condition, 'motherboard');
-  const ramP = getPricingForPart(ram.id, catalog, prefs.condition, 'ram');
-  const ssdP = getPricingForPart(ssd.id, catalog, prefs.condition, 'ssd');
-  const psuP = getPricingForPart(psu.id, catalog, prefs.condition, 'psu');
-  const caseP = getPricingForPart(pcCase.id, catalog, prefs.condition, 'pcCase');
-  const coolerP = getPricingForPart(cooler.id, catalog, prefs.condition, 'cooler');
+  const cpuP = getPricingForPart(cpu.id, catalog);
+  const gpuP = getPricingForPart(gpu.id, catalog);
+  const mbP = getPricingForPart(motherboard.id, catalog);
+  const ramP = getPricingForPart(ram.id, catalog);
+  const ssdP = getPricingForPart(ssd.id, catalog);
+  const psuP = getPricingForPart(psu.id, catalog);
+  const caseP = getPricingForPart(pcCase.id, catalog);
+  const coolerP = getPricingForPart(cooler.id, catalog);
 
   const allPricings = [cpuP, gpuP, mbP, ramP, ssdP, psuP, caseP, coolerP];
   const calculatedTotalTry = allPricings.reduce((acc, item) => acc + item.price, 0);
   const allNewTotalTry = allPricings.reduce((acc, item) => acc + item.newPrice, 0);
-  const zeroVsUsedSavingsTry = Math.max(0, allNewTotalTry - calculatedTotalTry);
-  const zeroVsUsedSavingsPercent =
-    allNewTotalTry > 0 ? Math.round((zeroVsUsedSavingsTry / allNewTotalTry) * 100) : 0;
+  const bundleSavingsTry = Math.max(0, allNewTotalTry - calculatedTotalTry);
+  const bundleSavingsPercent =
+    allNewTotalTry > 0 ? Math.round((bundleSavingsTry / allNewTotalTry) * 100) : 0;
 
   const hasRealListingData = allPricings.some(
     (p) => p.sourceType === 'authorized_api' || p.sourceType === 'user_listings'
@@ -483,13 +434,6 @@ export function assembleBuildFromIds(
     isCustomized ? ' (Özel)' : ''
   }`;
 
-  const conditionText =
-    prefs.condition === 'sifir'
-      ? 'Tamamı Sıfır Kurgu'
-      : prefs.condition === 'karma'
-        ? 'Karma (CPU/GPU İkinci El, Diğerleri Sıfır)'
-        : 'İkinci El Ağırlıklı Kurgu';
-
   const diff = prefs.budget - calculatedTotalTry;
   const isWithinBudget = diff >= 0;
   const budgetStatusText = isWithinBudget
@@ -512,28 +456,17 @@ export function assembleBuildFromIds(
     label,
     model,
     detail,
-    conditionLabel: p.conditionLabel,
     priceTry: p.price,
     priceSourceType: p.sourceType,
     priceSourceSummary: p.sourceSummary,
     listingCount: p.listingCount,
     excludedOutlierCount: p.excludedOutlierCount,
     lastCheckedAt: p.lastCheckedAt,
-    comparison: p.info?.comparison ?? {
-      newPriceTry: p.newPrice,
-      usedPriceTry: null,
-      differenceTry: null,
-      savingsPercent: null,
-      newSourceLabel: p.sourceSummary,
-      usedSourceLabel: 'Veri yok',
-      advantageNote: '',
-      riskNote: '',
-    },
     selectionReason: reason,
   });
 
   return {
-    id: `rmg-${tier}-${cpu.id}-${gpu.id}-${cooler.id}-${prefs.resolution}-${prefs.condition}`,
+    id: `rmg-${tier}-${cpu.id}-${gpu.id}-${cooler.id}-${prefs.resolution}`,
     tier,
     tierTitle: tierMeta[tier].title,
     tierSubtitle: tierMeta[tier].subtitle,
@@ -542,15 +475,14 @@ export function assembleBuildFromIds(
     samplePriceTry: calculatedTotalTry,
     hasRealListingData,
     allNewTotalTry,
-    zeroVsUsedSavingsTry,
-    zeroVsUsedSavingsPercent,
+    bundleSavingsTry,
+    bundleSavingsPercent,
     budgetStatusText,
     isWithinBudget,
     estimatedWattage: compatibility.realisticPeakDrawWatts,
     recommendedPsuWatts: compatibility.recommendedPsuWatts,
     targetResolution: prefs.resolution,
     suitedPurposes: [prefs.purpose],
-    conditionSummary: conditionText,
     selectedIds: {
       cpuId: cpu.id,
       gpuId: gpu.id,
@@ -617,58 +549,72 @@ function generateVerifiedCandidates(
   prefs: BuilderPreferences,
   catalog: PricingCatalogResponse | null
 ): CandidateBuild[] {
+  const priceOf = (id: string) => getPricingForPart(id, catalog).price;
+
   const cpus = CPU_DB.filter((p) => !p.isUnverifiedSpecSample)
     .filter((c) => {
       if (prefs.cpuBrandPref === 'amd') return c.brand === 'AMD';
       if (prefs.cpuBrandPref === 'intel') return c.brand === 'Intel';
       return true;
     })
-    .filter(
-      (c) =>
-        !catalog || getPricingForPart(c.id, catalog, prefs.condition, 'cpu').price > 0
-    );
+    .filter((c) => !catalog || priceOf(c.id) > 0);
 
-  const gpus = GPU_DB.filter((p) => !p.isUnverifiedSpecSample)
+  const filteredGpus = GPU_DB.filter((p) => !p.isUnverifiedSpecSample)
     .filter((g) => (prefs.purpose === 'ofis' ? true : !g.isIntegrated))
     .filter((g) => {
       if (g.isIntegrated) return true;
-      if (prefs.gpuBrandPref === 'nvidia') return g.brand === 'NVIDIA';
-      if (prefs.gpuBrandPref === 'amd') return g.brand === 'AMD';
+      const modelLower = g.model.toLowerCase();
+      if (prefs.gpuBrandPref === 'nvidia') {
+        return g.brand === 'NVIDIA' || modelLower.includes('geforce') || modelLower.includes('rtx');
+      }
+      if (prefs.gpuBrandPref === 'amd') {
+        return g.brand === 'AMD' || modelLower.includes('radeon') || /\brx\b/.test(modelLower);
+      }
       return true;
     })
-    .filter(
-      (g) =>
-        g.isIntegrated ||
-        !catalog ||
-        getPricingForPart(g.id, catalog, prefs.condition, 'gpu').price > 0
-    );
+    .filter((g) => g.isIntegrated || !catalog || priceOf(g.id) > 0);
 
-  const motherboards = MOTHERBOARD_DB.filter((p) => !p.isUnverifiedSpecSample);
-  const rams = RAM_DB.filter((p) => !p.isUnverifiedSpecSample);
-  const ssds = SSD_DB.filter((p) => !p.isUnverifiedSpecSample);
-  const psus = PSU_DB.filter((p) => !p.isUnverifiedSpecSample);
-  const cases = CASE_DB.filter((p) => !p.isUnverifiedSpecSample);
-  const coolers = CPU_COOLER_DB.filter((p) => !p.isUnverifiedSpecSample);
+  // Her GPU yonga + VRAM katmanı için en uygun fiyatlı temsilciyi seç (aday aramasını O(N) tutar)
+  const gpuRepMap = new Map<string, GpuPart>();
+  const sortedGpusByPrice = [...filteredGpus].sort((a, b) => priceOf(a.id) - priceOf(b.id));
+  for (const g of sortedGpusByPrice) {
+    const key = g.isIntegrated ? g.id : `${g.shortTitle}::${g.vramGb ?? 0}`;
+    if (!gpuRepMap.has(key)) {
+      gpuRepMap.set(key, g);
+    }
+  }
+  const gpus = Array.from(gpuRepMap.values());
+
+  const byPriceAsc = <T extends { id: string }>(arr: T[]) =>
+    arr.filter((p) => !('isUnverifiedSpecSample' in p && (p as { isUnverifiedSpecSample?: boolean }).isUnverifiedSpecSample))
+      .sort((a, b) => priceOf(a.id) - priceOf(b.id));
+
+  const motherboards = byPriceAsc(MOTHERBOARD_DB);
+  const rams = byPriceAsc(RAM_DB);
+  const sortedSsds = byPriceAsc(SSD_DB);
+  const psus = byPriceAsc(PSU_DB);
+  const cases = byPriceAsc(CASE_DB);
+  const coolers = byPriceAsc(CPU_COOLER_DB);
 
   const { prefersEsports, prefersHeavyAaa } = analyzeGameProfile(prefs.favoriteGames);
+  const preferredSsd =
+    (prefersHeavyAaa || prefs.purpose === 'tasarim') &&
+    sortedSsds.some((s) => s.capacityGb >= 1000)
+      ? sortedSsds.find((s) => s.capacityGb >= 1000) ?? sortedSsds[0]
+      : sortedSsds[0];
+
   const candidates: CandidateBuild[] = [];
 
   for (const cpu of cpus) {
-    const validBoards = motherboards
-      .filter(
-        (mb) =>
-          mb.socket === cpu.socket &&
-          cpu.generation !== null &&
-          mb.nativeCpuGenerations.includes(cpu.generation) &&
-          cpu.maxPowerWatts !== null &&
-          mb.vrmMaxCpuWatts !== null &&
-          cpu.maxPowerWatts <= mb.vrmMaxCpuWatts
-      )
-      .sort(
-        (a, b) =>
-          getPricingForPart(a.id, catalog, prefs.condition, 'motherboard').price -
-          getPricingForPart(b.id, catalog, prefs.condition, 'motherboard').price
-      );
+    const validBoards = motherboards.filter(
+      (mb) =>
+        mb.socket === cpu.socket &&
+        cpu.generation !== null &&
+        mb.nativeCpuGenerations.includes(cpu.generation) &&
+        cpu.maxPowerWatts !== null &&
+        mb.vrmMaxCpuWatts !== null &&
+        cpu.maxPowerWatts <= mb.vrmMaxCpuWatts
+    );
 
     if (validBoards.length === 0) continue;
 
@@ -677,26 +623,31 @@ function generateVerifiedCandidates(
         ? [validBoards[0], validBoards[validBoards.length - 1]]
         : [validBoards[0]];
 
+    const cooler = coolers.find(
+      (cl) =>
+        cl.supportedSockets.includes(cpu.socket) &&
+        cpu.maxPowerWatts !== null &&
+        cl.maxTdpCapacityWatts !== null &&
+        cl.maxTdpCapacityWatts >= cpu.maxPowerWatts &&
+        (!cpu.requiresDedicatedCooler || cl.coolerType !== 'Stok / Giriş')
+    );
+
+    if (!cooler) continue;
+
     for (const mb of boardOptions) {
-      const validRams = rams
-        .filter(
-          (r) =>
-            r.generation === mb.supportedRam &&
-            r.modulesCount !== null &&
-            mb.ramSlots !== null &&
-            r.modulesCount <= mb.ramSlots &&
-            r.capacityGb !== null &&
-            mb.maxRamGb !== null &&
-            r.capacityGb <= mb.maxRamGb &&
-            r.speedMhz !== null &&
-            mb.maxRamSpeedMhz !== null &&
-            r.speedMhz <= mb.maxRamSpeedMhz
-        )
-        .sort(
-          (a, b) =>
-            getPricingForPart(a.id, catalog, prefs.condition, 'ram').price -
-            getPricingForPart(b.id, catalog, prefs.condition, 'ram').price
-        );
+      const validRams = rams.filter(
+        (r) =>
+          r.generation === mb.supportedRam &&
+          r.modulesCount !== null &&
+          mb.ramSlots !== null &&
+          r.modulesCount <= mb.ramSlots &&
+          r.capacityGb !== null &&
+          mb.maxRamGb !== null &&
+          r.capacityGb <= mb.maxRamGb &&
+          r.speedMhz !== null &&
+          mb.maxRamSpeedMhz !== null &&
+          r.speedMhz <= mb.maxRamSpeedMhz
+      );
 
       if (validRams.length === 0) continue;
 
@@ -704,39 +655,12 @@ function generateVerifiedCandidates(
         prefs.purpose === 'tasarim' || prefs.purpose === 'yayin'
           ? validRams.find((r) => (r.capacityGb ?? 0) >= 32) ?? validRams[validRams.length - 1]
           : validRams[0];
-      const highRam = validRams[validRams.length - 1];
+      const highRam = validRams.find((r) => (r.capacityGb ?? 0) >= 32) ?? validRams[validRams.length - 1];
       const ramOptions =
         preferredRam.id === highRam.id ? [preferredRam] : [preferredRam, highRam];
 
-      const validCoolers = coolers
-        .filter(
-          (cl) =>
-            cl.supportedSockets.includes(cpu.socket) &&
-            cpu.maxPowerWatts !== null &&
-            cl.maxTdpCapacityWatts !== null &&
-            cl.maxTdpCapacityWatts >= cpu.maxPowerWatts &&
-            (!cpu.requiresDedicatedCooler || cl.coolerType !== 'Stok / Giriş')
-        )
-        .sort(
-          (a, b) =>
-            getPricingForPart(a.id, catalog, prefs.condition, 'cooler').price -
-            getPricingForPart(b.id, catalog, prefs.condition, 'cooler').price
-        );
-
-      if (validCoolers.length === 0) continue;
-      const cooler = validCoolers[0];
-
       for (const ram of ramOptions) {
-        const sortedSsds = [...ssds].sort(
-          (a, b) =>
-            getPricingForPart(a.id, catalog, prefs.condition, 'ssd').price -
-            getPricingForPart(b.id, catalog, prefs.condition, 'ssd').price
-        );
-        const ssd =
-          (prefersHeavyAaa || prefs.purpose === 'tasarim') &&
-          sortedSsds.some((s) => s.capacityGb >= 1000)
-            ? sortedSsds.find((s) => s.capacityGb >= 1000) ?? sortedSsds[0]
-            : sortedSsds[0];
+        const ssd = preferredSsd;
 
         for (const gpu of gpus) {
           if (
@@ -745,58 +669,47 @@ function generateVerifiedCandidates(
           ) {
             continue;
           }
-          const validCase = cases
-            .filter((c) => {
-              if (!c.supportedFormFactors.includes(mb.formFactor)) return false;
-              if (
-                !gpu.isIntegrated &&
-                (gpu.lengthMm === null ||
-                  c.maxGpuLengthMm === null ||
-                  gpu.lengthMm > c.maxGpuLengthMm ||
-                  gpu.widthSlots === null ||
-                  c.expansionSlots === null ||
-                  gpu.widthSlots > c.expansionSlots)
-              ) {
-                return false;
-              }
-              if (cooler.coolerType === 'Sıvı Soğutma') {
-                return (
-                  cooler.radiatorMm !== null &&
-                  c.supportedRadiatorMm.includes(cooler.radiatorMm)
-                );
-              }
+
+          const validCase = cases.find((c) => {
+            if (!c.supportedFormFactors.includes(mb.formFactor)) return false;
+            if (
+              !gpu.isIntegrated &&
+              (gpu.lengthMm === null ||
+                c.maxGpuLengthMm === null ||
+                gpu.lengthMm > c.maxGpuLengthMm ||
+                gpu.widthSlots === null ||
+                c.expansionSlots === null ||
+                gpu.widthSlots > c.expansionSlots)
+            ) {
+              return false;
+            }
+            if (cooler.coolerType === 'Sıvı Soğutma') {
               return (
-                cooler.heightMm !== null &&
-                c.maxCoolerHeightMm !== null &&
-                cooler.heightMm <= c.maxCoolerHeightMm
+                cooler.radiatorMm !== null &&
+                c.supportedRadiatorMm.includes(cooler.radiatorMm)
               );
-            })
-            .sort(
-              (a, b) =>
-                getPricingForPart(a.id, catalog, prefs.condition, 'pcCase').price -
-                getPricingForPart(b.id, catalog, prefs.condition, 'pcCase').price
-            )[0];
+            }
+            return (
+              cooler.heightMm !== null &&
+              c.maxCoolerHeightMm !== null &&
+              cooler.heightMm <= c.maxCoolerHeightMm
+            );
+          });
 
           if (!validCase) continue;
 
-          const validPsu = psus
-            .filter((p) => {
-              const check = evaluateCompatibility({
-                cpu,
-                gpu,
-                motherboard: mb,
-                ram,
-                psu: p,
-                pcCase: validCase,
-                cooler,
-              });
-              return check.overallStatus === 'verified';
-            })
-            .sort(
-              (a, b) =>
-                getPricingForPart(a.id, catalog, prefs.condition, 'psu').price -
-                getPricingForPart(b.id, catalog, prefs.condition, 'psu').price
-            )[0];
+          const validPsu = psus.find((p) => {
+            const check = evaluateCompatibility({
+              cpu,
+              gpu,
+              motherboard: mb,
+              ram,
+              psu: p,
+              pcCase: validCase,
+              cooler,
+            });
+            return check.overallStatus === 'verified';
+          });
 
           if (!validPsu) continue;
 
@@ -811,18 +724,18 @@ function generateVerifiedCandidates(
             coolerId: cooler.id,
           };
 
-          const cpuPrice = getPricingForPart(cpu.id, catalog, prefs.condition, 'cpu').price;
-          const gpuPrice = getPricingForPart(gpu.id, catalog, prefs.condition, 'gpu').price;
+          const cpuPrice = priceOf(cpu.id);
+          const gpuPrice = priceOf(gpu.id);
 
           const price =
             cpuPrice +
             gpuPrice +
-            getPricingForPart(mb.id, catalog, prefs.condition, 'motherboard').price +
-            getPricingForPart(ram.id, catalog, prefs.condition, 'ram').price +
-            getPricingForPart(ssd.id, catalog, prefs.condition, 'ssd').price +
-            getPricingForPart(validPsu.id, catalog, prefs.condition, 'psu').price +
-            getPricingForPart(validCase.id, catalog, prefs.condition, 'pcCase').price +
-            getPricingForPart(cooler.id, catalog, prefs.condition, 'cooler').price;
+            priceOf(mb.id) +
+            priceOf(ram.id) +
+            priceOf(ssd.id) +
+            priceOf(validPsu.id) +
+            priceOf(validCase.id) +
+            priceOf(cooler.id);
 
           // Dengeli bütçe dağılımı kontrolü (GPU/CPU aşırı dengesizliğini sert cezalandır)
           const tierGap = Math.abs(gpu.tierLevel - cpu.tierLevel);
@@ -1291,7 +1204,6 @@ export function getShowcaseReadyBuilds(
       purpose: preset.purpose,
       favoriteGames: ['Valorant', 'Cyberpunk 2077', 'Red Dead Redemption 2'],
       resolution: preset.resolution,
-      condition: 'sifir',
       cpuBrandPref: 'farketmez',
       gpuBrandPref: 'farketmez',
     };
@@ -1313,8 +1225,8 @@ export function getShowcaseReadyBuilds(
       image: preset.image,
       samplePriceTry: effectivePrice,
       allNewTotalTry: oldPriceTry,
-      zeroVsUsedSavingsTry: Math.max(0, oldPriceTry - effectivePrice),
-      zeroVsUsedSavingsPercent: preset.discountPercent,
+      bundleSavingsTry: Math.max(0, oldPriceTry - effectivePrice),
+      bundleSavingsPercent: preset.discountPercent,
       performanceNote: preset.performanceNote,
     };
 

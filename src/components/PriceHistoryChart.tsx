@@ -32,8 +32,8 @@ export const PriceHistoryChart: React.FC<PriceHistoryChartProps> = ({
           {conditionLabel ? ` (${conditionLabel})` : ''}
         </h3>
         <p className="mt-2 text-sm text-[#94A3B8]">
-          Bu ürün için veritabanında henüz kaydedilmiş fiyat geçmişi bulunmuyor. İlan
-          ekledikçe fiyat değişim grafiği otomatik oluşur.
+          Bu ürün için veritabanında henüz kaydedilmiş fiyat geçmişi bulunmuyor. Mağaza fiyat
+          senkronizasyonu yapıldıkça fiyat değişim grafiği otomatik oluşur.
         </p>
       </div>
     );

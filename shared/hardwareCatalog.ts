@@ -1,19 +1,37 @@
 import type {
   CasePart,
   CoolerPart,
+  CpuGeneration,
   CpuPart,
+  CpuSocket,
+  FormFactor,
   GpuPart,
   MotherboardPart,
   PsuPart,
+  RamGeneration,
   RamPart,
   SsdPart,
 } from '../src/types/pc.ts';
 
 /**
  * RMG Garaj Merkezi Donanım Özellik Veritabanı (Tek Doğru Kaynak)
- * Bu dosya yalnızca bileşenlerin teknik özelliklerini barındırır.
- * Fiyat verileri frontend içerisine sabitlenmez; backend fiyat entegrasyon katmanından gelir.
+ * Yalnızca Türkiye pazarında satılan sıfır (kapalı kutu) bilgisayar donanımlarını ve
+ * teknik uyumluluk verilerini barındırır.
  */
+
+function catalogSlug(value: string): string {
+  return value
+    .toLocaleLowerCase('tr-TR')
+    .replace(/ı/g, 'i')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+// ============================================================================
+// 1. İŞLEMCİLER (CPU) — AMD AM4 / AM5 & Intel LGA1700 / LGA1851
+// ============================================================================
 
 export const CPU_DB: CpuPart[] = [
   {
@@ -33,7 +51,7 @@ export const CPU_DB: CpuPart[] = [
     supportedRam: ['DDR4'],
     gamingScore: 48,
     productivityScore: 50,
-    specSummary: '6 Çekirdek / 12 İzlek · 4.4 GHz · AM4 · Maks. 88W',
+    specSummary: '6 Çekirdek / 12 İzlek · 4.4 GHz · AM4 · Radeon Vega 7 · Maks. 88W',
   },
   {
     id: 'cpu-i3-14100f',
@@ -208,48 +226,111 @@ export const CPU_DB: CpuPart[] = [
   },
 ];
 
+type CpuRow = readonly [
+  model: string,
+  socket: CpuSocket,
+  generation: CpuGeneration,
+  cores: number,
+  threads: number,
+  boostClockGhz: number,
+  tdpWatts: number,
+  maxPowerWatts: number,
+  requiresDedicatedCooler: boolean,
+  hasIntegratedGraphics: boolean,
+  supportedRam: readonly RamGeneration[],
+  gamingScore: number,
+  productivityScore: number,
+];
 
-// Genişletilmiş CPU kataloğu. Bu kayıtlar işlemci ailesi/model referansıdır;
-// anakart ve RAM uyumluluğu gerçek sistem toplama aşamasında ayrıca doğrulanır.
-CPU_DB.push(...([
-  // AMD AM4
-  ['AMD Ryzen 3 4100','AM4','Ryzen 4000',4,8,4.0,65,88,false,false,['DDR4'],42,40],
-  ['AMD Ryzen 5 4500','AM4','Ryzen 4000',6,12,4.1,65,88,false,false,['DDR4'],48,48],
-  ['AMD Ryzen 5 5500','AM4','Ryzen 5000',6,12,4.2,65,88,false,false,['DDR4'],55,54],
-  ['AMD Ryzen 5 5600X','AM4','Ryzen 5000',6,12,4.6,65,88,true,false,['DDR4'],66,62],
-  ['AMD Ryzen 7 5700X','AM4','Ryzen 5000',8,16,4.6,65,88,true,false,['DDR4'],72,78],
-  ['AMD Ryzen 7 5700X3D','AM4','Ryzen 5000',8,16,4.1,105,142,true,false,['DDR4'],88,76],
-  ['AMD Ryzen 7 5800X3D','AM4','Ryzen 5000',8,16,4.5,105,142,true,false,['DDR4'],94,80],
-  ['AMD Ryzen 9 5900X','AM4','Ryzen 5000',12,24,4.8,105,142,true,false,['DDR4'],82,94],
-  ['AMD Ryzen 9 5950X','AM4','Ryzen 5000',16,32,4.9,105,142,true,false,['DDR4'],84,100],
-  // AMD AM5
-  ['AMD Ryzen 5 7600','AM5','Ryzen 7000',6,12,5.1,65,88,false,true,['DDR5'],80,72],
-  ['AMD Ryzen 5 7600X','AM5','Ryzen 7000',6,12,5.3,105,142,true,true,['DDR5'],83,76],
-  ['AMD Ryzen 7 7700','AM5','Ryzen 7000',8,16,5.3,65,88,false,true,['DDR5'],85,86],
-  ['AMD Ryzen 7 9700X','AM5','Ryzen 9000',8,16,5.5,65,88,false,true,['DDR5'],91,90],
-  ['AMD Ryzen 7 9800X3D','AM5','Ryzen 9000',8,16,5.2,120,162,true,true,['DDR5'],100,90],
-  ['AMD Ryzen 9 9900X','AM5','Ryzen 9000',12,24,5.6,120,162,true,true,['DDR5'],94,96],
-  // Intel LGA1700
-  ['Intel Core i5-12400F','LGA1700','Intel 12. Nesil',6,12,4.4,65,117,false,false,['DDR4','DDR5'],62,58],
-  ['Intel Core i5-12600K','LGA1700','Intel 12. Nesil',10,16,4.9,125,150,true,true,['DDR4','DDR5'],76,78],
-  ['Intel Core i7-12700F','LGA1700','Intel 12. Nesil',12,20,4.9,65,180,true,false,['DDR4','DDR5'],78,86],
-  ['Intel Core i7-12700K','LGA1700','Intel 12. Nesil',12,20,5.0,125,190,true,true,['DDR4','DDR5'],82,90],
-  ['Intel Core i5-13600K','LGA1700','Intel 13. Nesil',14,20,5.1,125,181,true,true,['DDR4','DDR5'],87,90],
-  ['Intel Core i7-13700K','LGA1700','Intel 13. Nesil',16,24,5.4,125,253,true,true,['DDR4','DDR5'],91,96],
-  ['Intel Core i9-13900K','LGA1700','Intel 13. Nesil',24,32,5.8,125,253,true,true,['DDR4','DDR5'],94,100],
-  ['Intel Core i5-14600K','LGA1700','Intel 14. Nesil',14,20,5.3,125,181,true,true,['DDR4','DDR5'],89,92],
-  ['Intel Core i9-14900K','LGA1700','Intel 14. Nesil',24,32,6.0,125,253,true,true,['DDR4','DDR5'],96,100],
-  // Intel LGA1851 / Core Ultra 200S
-  ['Intel Core Ultra 5 245K','LGA1851','Core Ultra 200S',14,14,5.2,125,159,true,true,['DDR5'],87,84],
-  ['Intel Core Ultra 7 265K','LGA1851','Core Ultra 200S',20,20,5.5,125,250,true,true,['DDR5'],91,96],
-  ['Intel Core Ultra 9 285K','LGA1851','Core Ultra 200S',24,24,5.7,125,250,true,true,['DDR5'],94,100],
-] as const).map((r, i) => ({
-  id: `cpu-catalog-${i + 1}`,
-  brand: r[0].startsWith('AMD') ? 'AMD' : 'Intel', model: r[0], tierLevel: (r[11] >= 90 ? 5 : r[11] >= 80 ? 4 : r[11] >= 65 ? 3 : 2) as 1|2|3|4|5,
-  socket: r[1], generation: r[2], cores: r[3], threads: r[4], boostClockGhz: r[5], tdpWatts: r[6], maxPowerWatts: r[7],
-  requiresDedicatedCooler: r[8], hasIntegratedGraphics: r[9], supportedRam: [...r[10]], gamingScore: r[11], productivityScore: r[12],
-  specSummary: `${r[3]} Çekirdek / ${r[4]} İzlek · ${r[5]} GHz · ${r[1]} · ${r[2]}`,
-} as CpuPart)));
+const EXTENDED_CPU_ROWS: readonly CpuRow[] = [
+  // AMD AM4 (DDR4)
+  ['AMD Ryzen 3 4100', 'AM4', 'Ryzen 4000', 4, 8, 4.0, 65, 88, false, false, ['DDR4'], 42, 40],
+  ['AMD Ryzen 5 4500', 'AM4', 'Ryzen 4000', 6, 12, 4.1, 65, 88, false, false, ['DDR4'], 48, 48],
+  ['AMD Ryzen 5 5500', 'AM4', 'Ryzen 5000', 6, 12, 4.2, 65, 88, false, false, ['DDR4'], 56, 54],
+  ['AMD Ryzen 5 5600GT', 'AM4', 'Ryzen 5000', 6, 12, 4.6, 65, 88, false, true, ['DDR4'], 52, 54],
+  ['AMD Ryzen 5 5600X', 'AM4', 'Ryzen 5000', 6, 12, 4.6, 65, 88, true, false, ['DDR4'], 66, 62],
+  ['AMD Ryzen 7 5700', 'AM4', 'Ryzen 5000', 8, 16, 4.6, 65, 88, false, false, ['DDR4'], 68, 72],
+  ['AMD Ryzen 7 5700X', 'AM4', 'Ryzen 5000', 8, 16, 4.6, 65, 88, true, false, ['DDR4'], 72, 78],
+  ['AMD Ryzen 7 5700X3D', 'AM4', 'Ryzen 5000', 8, 16, 4.1, 105, 142, true, false, ['DDR4'], 88, 76],
+  ['AMD Ryzen 7 5800X', 'AM4', 'Ryzen 5000', 8, 16, 4.7, 105, 142, true, false, ['DDR4'], 75, 80],
+  ['AMD Ryzen 7 5800X3D', 'AM4', 'Ryzen 5000', 8, 16, 4.5, 105, 142, true, false, ['DDR4'], 93, 80],
+  ['AMD Ryzen 9 5900X', 'AM4', 'Ryzen 5000', 12, 24, 4.8, 105, 142, true, false, ['DDR4'], 82, 94],
+  ['AMD Ryzen 9 5950X', 'AM4', 'Ryzen 5000', 16, 32, 4.9, 105, 142, true, false, ['DDR4'], 84, 98],
+
+  // AMD AM5 (DDR5)
+  ['AMD Ryzen 5 7600', 'AM5', 'Ryzen 7000', 6, 12, 5.1, 65, 88, false, true, ['DDR5'], 80, 72],
+  ['AMD Ryzen 5 7600X', 'AM5', 'Ryzen 7000', 6, 12, 5.3, 105, 142, true, true, ['DDR5'], 83, 76],
+  ['AMD Ryzen 5 8400F', 'AM5', 'Ryzen 8000', 6, 12, 4.7, 65, 88, false, false, ['DDR5'], 74, 65],
+  ['AMD Ryzen 5 8500G', 'AM5', 'Ryzen 8000', 6, 12, 5.0, 65, 88, false, true, ['DDR5'], 64, 62],
+  ['AMD Ryzen 5 8600G', 'AM5', 'Ryzen 8000', 6, 12, 5.0, 65, 88, false, true, ['DDR5'], 69, 68],
+  ['AMD Ryzen 7 8700G', 'AM5', 'Ryzen 8000', 8, 16, 5.1, 65, 88, false, true, ['DDR5'], 76, 79],
+  ['AMD Ryzen 7 7700', 'AM5', 'Ryzen 7000', 8, 16, 5.3, 65, 88, false, true, ['DDR5'], 85, 86],
+  ['AMD Ryzen 9 7900', 'AM5', 'Ryzen 7000', 12, 24, 5.4, 65, 88, false, true, ['DDR5'], 88, 94],
+  ['AMD Ryzen 9 7900X', 'AM5', 'Ryzen 7000', 12, 24, 5.6, 170, 230, true, true, ['DDR5'], 90, 96],
+  ['AMD Ryzen 9 7900X3D', 'AM5', 'Ryzen 7000', 12, 24, 5.6, 120, 162, true, true, ['DDR5'], 95, 95],
+  ['AMD Ryzen 9 7950X', 'AM5', 'Ryzen 7000', 16, 32, 5.7, 170, 230, true, true, ['DDR5'], 91, 99],
+  ['AMD Ryzen 9 7950X3D', 'AM5', 'Ryzen 7000', 16, 32, 5.7, 120, 162, true, true, ['DDR5'], 97, 99],
+  ['AMD Ryzen 5 9600X', 'AM5', 'Ryzen 9000', 6, 12, 5.4, 65, 88, true, true, ['DDR5'], 86, 78],
+  ['AMD Ryzen 7 9700X', 'AM5', 'Ryzen 9000', 8, 16, 5.5, 65, 88, true, true, ['DDR5'], 91, 90],
+  ['AMD Ryzen 7 9800X3D', 'AM5', 'Ryzen 9000', 8, 16, 5.2, 120, 162, true, true, ['DDR5'], 100, 91],
+  ['AMD Ryzen 9 9900X', 'AM5', 'Ryzen 9000', 12, 24, 5.6, 120, 162, true, true, ['DDR5'], 94, 97],
+  ['AMD Ryzen 9 9950X3D', 'AM5', 'Ryzen 9000', 16, 32, 5.7, 170, 200, true, true, ['DDR5'], 100, 100],
+
+  // Intel LGA1700 (DDR4 & DDR5)
+  ['Intel Core i3-12100F', 'LGA1700', 'Intel 12. Nesil', 4, 8, 4.3, 58, 89, false, false, ['DDR4', 'DDR5'], 49, 40],
+  ['Intel Core i3-13100F', 'LGA1700', 'Intel 13. Nesil', 4, 8, 4.5, 58, 89, false, false, ['DDR4', 'DDR5'], 52, 42],
+  ['Intel Core i5-12400F', 'LGA1700', 'Intel 12. Nesil', 6, 12, 4.4, 65, 117, false, false, ['DDR4', 'DDR5'], 63, 58],
+  ['Intel Core i5-12600KF', 'LGA1700', 'Intel 12. Nesil', 10, 16, 4.9, 125, 150, true, false, ['DDR4', 'DDR5'], 75, 78],
+  ['Intel Core i5-13600KF', 'LGA1700', 'Intel 13. Nesil', 14, 20, 5.1, 125, 181, true, false, ['DDR4', 'DDR5'], 86, 89],
+  ['Intel Core i5-14500', 'LGA1700', 'Intel 14. Nesil', 14, 20, 5.0, 65, 154, true, true, ['DDR4', 'DDR5'], 82, 86],
+  ['Intel Core i5-14600K', 'LGA1700', 'Intel 14. Nesil', 14, 20, 5.3, 125, 181, true, true, ['DDR4', 'DDR5'], 89, 92],
+  ['Intel Core i5-14600KF', 'LGA1700', 'Intel 14. Nesil', 14, 20, 5.3, 125, 181, true, false, ['DDR4', 'DDR5'], 89, 92],
+  ['Intel Core i7-12700KF', 'LGA1700', 'Intel 12. Nesil', 12, 20, 5.0, 125, 190, true, false, ['DDR4', 'DDR5'], 82, 88],
+  ['Intel Core i7-13700KF', 'LGA1700', 'Intel 13. Nesil', 16, 24, 5.4, 125, 253, true, false, ['DDR4', 'DDR5'], 90, 95],
+  ['Intel Core i7-14700KF', 'LGA1700', 'Intel 14. Nesil', 20, 28, 5.6, 125, 253, true, false, ['DDR4', 'DDR5'], 92, 97],
+  ['Intel Core i9-13900K', 'LGA1700', 'Intel 13. Nesil', 24, 32, 5.8, 125, 253, true, true, ['DDR4', 'DDR5'], 94, 99],
+  ['Intel Core i9-14900K', 'LGA1700', 'Intel 14. Nesil', 24, 32, 6.0, 125, 253, true, true, ['DDR4', 'DDR5'], 96, 100],
+  ['Intel Core i9-14900KF', 'LGA1700', 'Intel 14. Nesil', 24, 32, 6.0, 125, 253, true, false, ['DDR4', 'DDR5'], 96, 100],
+
+  // Intel LGA1851 (Core Ultra 200 — DDR5)
+  ['Intel Core Ultra 5 225F', 'LGA1851', 'Core Ultra 200', 10, 10, 4.9, 65, 121, false, false, ['DDR5'], 80, 78],
+  ['Intel Core Ultra 5 245K', 'LGA1851', 'Core Ultra 200', 14, 14, 5.2, 125, 159, true, true, ['DDR5'], 87, 86],
+  ['Intel Core Ultra 5 245KF', 'LGA1851', 'Core Ultra 200', 14, 14, 5.2, 125, 159, true, false, ['DDR5'], 87, 86],
+  ['Intel Core Ultra 7 265K', 'LGA1851', 'Core Ultra 200', 20, 20, 5.5, 125, 250, true, true, ['DDR5'], 91, 96],
+  ['Intel Core Ultra 7 265KF', 'LGA1851', 'Core Ultra 200', 20, 20, 5.5, 125, 250, true, false, ['DDR5'], 91, 96],
+  ['Intel Core Ultra 9 285K', 'LGA1851', 'Core Ultra 200', 24, 24, 5.7, 125, 250, true, true, ['DDR5'], 94, 100],
+];
+
+CPU_DB.push(
+  ...EXTENDED_CPU_ROWS.map((r, i) => ({
+    id: `cpu-catalog-${i + 1}`,
+    brand: r[0].startsWith('AMD') ? 'AMD' : 'Intel',
+    model: r[0],
+    tierLevel: (r[11] >= 90 ? 5 : r[11] >= 80 ? 4 : r[11] >= 65 ? 3 : r[11] >= 50 ? 2 : 1) as
+      | 1
+      | 2
+      | 3
+      | 4
+      | 5,
+    socket: r[1],
+    generation: r[2],
+    cores: r[3],
+    threads: r[4],
+    boostClockGhz: r[5],
+    tdpWatts: r[6],
+    maxPowerWatts: r[7],
+    requiresDedicatedCooler: r[8],
+    hasIntegratedGraphics: r[9],
+    supportedRam: [...r[10]],
+    gamingScore: r[11],
+    productivityScore: r[12],
+    specSummary: `${r[3]} Çekirdek / ${r[4]} İzlek · ${r[5]} GHz · ${r[1]} · ${r[2]} · Maks. ${r[7]}W`,
+  }))
+);
+
+// ============================================================================
+// 2. EKRAN KARTLARI (GPU) — Türkiye Sıfır Pazarındaki Güncel Seriler & Partner Kartlar
+// ============================================================================
 
 export const GPU_DB: GpuPart[] = [
   {
@@ -275,13 +356,13 @@ export const GPU_DB: GpuPart[] = [
   {
     id: 'gpu-rx6600',
     brand: 'AMD',
-    model: 'AMD Radeon RX 6600 8 GB',
+    model: 'Sapphire Pulse AMD Radeon RX 6600 8 GB',
     shortTitle: 'RX 6600',
     tierLevel: 1,
     vramGb: 8,
     tdpWatts: 132,
     peakPowerWatts: 165,
-    lengthMm: 240,
+    lengthMm: 193,
     widthSlots: 2,
     recommendedPsuWatts: 500,
     requiredConnectors: { eightPinCount: 1, twelveVhpwrCount: 0 },
@@ -289,7 +370,7 @@ export const GPU_DB: GpuPart[] = [
     score1080p: 48,
     score1440p: 30,
     score4k: 14,
-    specSummary: '8 GB GDDR6 · 240 mm · 2 Yuva · 1x 8-Pin PCIe · Tepe ~165W',
+    specSummary: '8 GB GDDR6 · 193 mm · 2 Yuva · 1x 8-Pin PCIe · Tepe ~165W',
   },
   {
     id: 'gpu-rtx3060-12',
@@ -484,73 +565,622 @@ export const GPU_DB: GpuPart[] = [
   },
 ];
 
+interface GpuChipBlueprint {
+  chip: string;
+  shortTitle: string;
+  vramGb: number;
+  memType: string;
+  tdp: number;
+  peak: number;
+  recPsu: number;
+  baseLength: number;
+  eightPin: number;
+  twelveVhpwr: number;
+  supportsNvenc: boolean;
+  score1080p: number;
+  score1440p: number;
+  score4k: number;
+  partners: { brand: string; edition: string; lengthDelta: number; slots: number }[];
+}
 
-// GPU kataloğu: referans kart güç değerleri kullanılır. Kart partnerine göre
-// fiziksel uzunluk/konektör değiştiğinden bu alanlar bilinmiyorsa null bırakılır.
-GPU_DB.push(...([
-  ['NVIDIA','GeForce GTX 960',2,120,145,400,1,35,20,8],
-  ['NVIDIA','GeForce GTX 970',4,145,175,500,2,42,28,12],
-  ['NVIDIA','GeForce GTX 980',4,165,195,500,2,46,32,14],
-  ['NVIDIA','GeForce GTX 1050 Ti',4,75,90,300,0,32,18,8],
-  ['NVIDIA','GeForce GTX 1060 6 GB',6,120,145,400,1,42,28,12],
-  ['NVIDIA','GeForce GTX 1070',8,150,180,500,1,50,38,18],
-  ['NVIDIA','GeForce GTX 1080',8,180,215,500,1,58,48,26],
-  ['NVIDIA','GeForce GTX 1080 Ti',11,250,300,600,2,66,60,38],
-  ['NVIDIA','GeForce GTX 1650',4,75,90,300,0,38,20,8],
-  ['NVIDIA','GeForce GTX 1660 Super',6,125,150,450,1,48,30,12],
-  ['NVIDIA','GeForce RTX 2060 6 GB',6,160,190,500,1,55,38,18],
-  ['NVIDIA','GeForce RTX 2060 Super 8 GB',8,175,210,550,1,60,44,22],
-  ['NVIDIA','GeForce RTX 2070 Super 8 GB',8,215,255,650,1,66,55,30],
-  ['NVIDIA','GeForce RTX 2080 Ti 11 GB',11,250,300,650,2,75,70,48],
-  ['NVIDIA','GeForce RTX 3050 8 GB',8,130,155,550,1,52,34,15],
-  ['NVIDIA','GeForce RTX 3060 Ti 8 GB',8,200,240,600,1,68,55,30],
-  ['NVIDIA','GeForce RTX 3070 8 GB',8,220,265,650,2,74,66,42],
-  ['NVIDIA','GeForce RTX 3070 Ti 8 GB',8,290,340,750,2,78,72,48],
-  ['NVIDIA','GeForce RTX 3080 10 GB',10,320,380,750,2,88,88,66],
-  ['NVIDIA','GeForce RTX 3080 Ti 12 GB',12,350,420,750,2,92,93,75],
-  ['NVIDIA','GeForce RTX 3090 24 GB',24,350,420,750,2,94,95,82],
-  ['NVIDIA','GeForce RTX 3090 Ti 24 GB',24,450,540,850,3,96,98,88],
-  ['NVIDIA','GeForce RTX 4070 12 GB',12,200,240,650,1,88,82,58],
-  ['NVIDIA','GeForce RTX 4070 Ti 12 GB',12,285,340,750,1,92,90,70],
-  ['NVIDIA','GeForce RTX 4080 16 GB',16,320,385,850,1,96,97,88],
-  ['NVIDIA','GeForce RTX 5070 12 GB',12,250,300,650,1,94,91,76],
-  ['NVIDIA','GeForce RTX 5070 Ti 16 GB',16,300,360,750,1,97,97,88],
-  ['NVIDIA','GeForce RTX 5080 16 GB',16,360,430,850,1,99,100,96],
-  ['NVIDIA','GeForce RTX 5090 32 GB',32,575,690,1000,1,100,100,100],
-  ['AMD','Radeon RX 580 8 GB',8,185,220,500,1,38,20,8],
-  ['AMD','Radeon RX 590 8 GB',8,225,270,550,1,42,24,10],
-  ['AMD','Radeon RX 5500 XT 8 GB',8,130,155,450,1,43,26,10],
-  ['AMD','Radeon RX 5600 XT 6 GB',6,150,180,500,1,52,36,16],
-  ['AMD','Radeon RX 5700 XT 8 GB',8,225,270,600,2,60,48,24],
-  ['AMD','Radeon RX 6500 XT 4 GB',4,107,130,400,1,35,18,6],
-  ['AMD','Radeon RX 6650 XT 8 GB',8,176,210,500,1,64,43,18],
-  ['AMD','Radeon RX 6700 XT 12 GB',12,230,275,650,2,72,62,34],
-  ['AMD','Radeon RX 6750 XT 12 GB',12,250,300,650,2,75,66,38],
-  ['AMD','Radeon RX 6800 16 GB',16,250,300,650,2,82,78,52],
-  ['AMD','Radeon RX 6800 XT 16 GB',16,300,360,750,2,88,86,62],
-  ['AMD','Radeon RX 6900 XT 16 GB',16,300,360,750,2,90,90,70],
-  ['AMD','Radeon RX 6950 XT 16 GB',16,335,400,850,2,92,93,76],
-  ['AMD','Radeon RX 7600 8 GB',8,165,198,550,1,68,48,22],
-  ['AMD','Radeon RX 7600 XT 16 GB',16,190,228,600,2,72,54,28],
-  ['AMD','Radeon RX 7900 GRE 16 GB',16,260,312,700,2,90,88,68],
-  ['AMD','Radeon RX 7900 XT 20 GB',20,315,378,750,2,94,95,82],
-  ['AMD','Radeon RX 7900 XTX 24 GB',24,355,426,850,2,98,100,94],
-  ['AMD','Radeon RX 9060 XT 16 GB',16,160,192,600,1,84,70,38],
-  ['AMD','Radeon RX 9070 16 GB',16,220,264,650,2,93,88,64],
-  ['AMD','Radeon RX 9070 XT 16 GB',16,304,365,750,2,97,96,82],
-  ['Intel','Arc A380 6 GB',6,75,90,350,0,32,18,7],
-  ['Intel','Arc A580 8 GB',8,185,222,550,1,48,34,16],
-  ['Intel','Arc A750 8 GB',8,225,270,600,2,60,48,24],
-  ['Intel','Arc A770 16 GB',16,225,270,600,2,66,58,32],
-  ['Intel','Arc B570 10 GB',10,150,180,550,1,65,45,20],
-  ['Intel','Arc B580 12 GB',12,190,228,600,1,76,62,30],
-] as const).map((r, i) => ({
-  id: `gpu-catalog-${i + 1}`, brand: r[0], model: `${r[0] === 'NVIDIA' ? 'NVIDIA GeForce ' : r[0] === 'AMD' ? 'AMD ' : 'Intel '}${r[1]}`,
-  shortTitle: r[1], tierLevel: (r[8] >= 90 ? 5 : r[8] >= 75 ? 4 : r[8] >= 55 ? 3 : r[8] >= 40 ? 2 : 1) as 1|2|3|4|5,
-  vramGb: r[2], tdpWatts: r[3], peakPowerWatts: r[4], lengthMm: null, widthSlots: null, recommendedPsuWatts: r[5],
-  requiredConnectors: null, supportsNvenc: r[0] === 'NVIDIA', score1080p: r[7], score1440p: r[8], score4k: r[9],
-  specSummary: `${r[2]} GB bellek · Referans kart güç değeri ${r[3]}W · Partner kart ölçü/konektör bilgisi doğrulanmalı`,
-} as GpuPart)));
+const NVIDIA_MAINSTREAM_PARTNERS: GpuChipBlueprint['partners'] = [
+  { brand: 'ASUS', edition: 'Dual OC', lengthDelta: 0, slots: 2.5 },
+  { brand: 'MSI', edition: 'Ventus 2X Black OC', lengthDelta: -10, slots: 2 },
+  { brand: 'Gigabyte', edition: 'Windforce OC', lengthDelta: 8, slots: 2.5 },
+  { brand: 'Galax', edition: '1-Click OC 2X', lengthDelta: -4, slots: 2 },
+  { brand: 'Palit', edition: 'Dual OC', lengthDelta: 2, slots: 2 },
+  { brand: 'Zotac', edition: 'Twin Edge OC', lengthDelta: -12, slots: 2 },
+  { brand: 'INNO3D', edition: 'Twin X2 OC', lengthDelta: -8, slots: 2 },
+];
+
+const NVIDIA_HIGH_PARTNERS: GpuChipBlueprint['partners'] = [
+  { brand: 'ASUS', edition: 'TUF Gaming OC', lengthDelta: 22, slots: 3 },
+  { brand: 'ASUS', edition: 'ROG Strix OC', lengthDelta: 38, slots: 3.5 },
+  { brand: 'MSI', edition: 'Gaming Trio OC', lengthDelta: 26, slots: 3 },
+  { brand: 'MSI', edition: 'Ventus 3X OC', lengthDelta: 12, slots: 2.5 },
+  { brand: 'Gigabyte', edition: 'Gaming OC', lengthDelta: 20, slots: 3 },
+  { brand: 'Gigabyte', edition: 'AORUS Elite', lengthDelta: 34, slots: 3.5 },
+  { brand: 'Palit', edition: 'JetStream OC', lengthDelta: 22, slots: 3 },
+  { brand: 'Galax', edition: 'EX Gamer 1-Click OC', lengthDelta: 18, slots: 3 },
+  { brand: 'Gainward', edition: 'Phoenix GS', lengthDelta: 20, slots: 3 },
+  { brand: 'Zotac', edition: 'AMP Extreme', lengthDelta: 28, slots: 3 },
+];
+
+const AMD_PARTNERS: GpuChipBlueprint['partners'] = [
+  { brand: 'Sapphire', edition: 'Pulse', lengthDelta: 0, slots: 2.5 },
+  { brand: 'Sapphire', edition: 'Pure Frost OC', lengthDelta: 18, slots: 2.5 },
+  { brand: 'Sapphire', edition: 'Nitro+ OC', lengthDelta: 30, slots: 3 },
+  { brand: 'XFX', edition: 'Speedster SWFT', lengthDelta: 12, slots: 2.5 },
+  { brand: 'XFX', edition: 'Speedster QICK', lengthDelta: 24, slots: 3 },
+  { brand: 'PowerColor', edition: 'Hellhound OC', lengthDelta: 22, slots: 2.5 },
+  { brand: 'ASUS', edition: 'TUF Gaming OC', lengthDelta: 26, slots: 3 },
+  { brand: 'Gigabyte', edition: 'Gaming OC', lengthDelta: 20, slots: 2.5 },
+];
+
+const GPU_CHIPS: GpuChipBlueprint[] = [
+  // NVIDIA RTX 5000 Blackwell Serisi (Türkiye Sıfır Pazar)
+  {
+    chip: 'GeForce RTX 5050',
+    shortTitle: 'RTX 5050',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 130,
+    peak: 155,
+    recPsu: 500,
+    baseLength: 230,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 60,
+    score1440p: 42,
+    score4k: 20,
+    partners: NVIDIA_MAINSTREAM_PARTNERS.slice(0, 5),
+  },
+  {
+    chip: 'GeForce RTX 5060',
+    shortTitle: 'RTX 5060',
+    vramGb: 8,
+    memType: 'GDDR7',
+    tdp: 145,
+    peak: 175,
+    recPsu: 550,
+    baseLength: 242,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 72,
+    score1440p: 54,
+    score4k: 28,
+    partners: NVIDIA_MAINSTREAM_PARTNERS,
+  },
+  {
+    chip: 'GeForce RTX 5060 Ti',
+    shortTitle: 'RTX 5060 Ti 8GB',
+    vramGb: 8,
+    memType: 'GDDR7',
+    tdp: 165,
+    peak: 200,
+    recPsu: 600,
+    baseLength: 252,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 80,
+    score1440p: 64,
+    score4k: 34,
+    partners: NVIDIA_MAINSTREAM_PARTNERS.slice(0, 6),
+  },
+  {
+    chip: 'GeForce RTX 5060 Ti',
+    shortTitle: 'RTX 5060 Ti 16GB',
+    vramGb: 16,
+    memType: 'GDDR7',
+    tdp: 180,
+    peak: 215,
+    recPsu: 600,
+    baseLength: 262,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 82,
+    score1440p: 70,
+    score4k: 42,
+    partners: NVIDIA_MAINSTREAM_PARTNERS,
+  },
+  {
+    chip: 'GeForce RTX 5070',
+    shortTitle: 'RTX 5070',
+    vramGb: 12,
+    memType: 'GDDR7',
+    tdp: 250,
+    peak: 295,
+    recPsu: 650,
+    baseLength: 285,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 92,
+    score1440p: 89,
+    score4k: 68,
+    partners: NVIDIA_HIGH_PARTNERS,
+  },
+  {
+    chip: 'GeForce RTX 5070 Ti',
+    shortTitle: 'RTX 5070 Ti',
+    vramGb: 16,
+    memType: 'GDDR7',
+    tdp: 300,
+    peak: 355,
+    recPsu: 750,
+    baseLength: 305,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 96,
+    score1440p: 96,
+    score4k: 84,
+    partners: NVIDIA_HIGH_PARTNERS,
+  },
+  {
+    chip: 'GeForce RTX 5080',
+    shortTitle: 'RTX 5080',
+    vramGb: 16,
+    memType: 'GDDR7',
+    tdp: 360,
+    peak: 420,
+    recPsu: 850,
+    baseLength: 315,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 99,
+    score1440p: 99,
+    score4k: 94,
+    partners: NVIDIA_HIGH_PARTNERS.slice(0, 7),
+  },
+  {
+    chip: 'GeForce RTX 5090',
+    shortTitle: 'RTX 5090',
+    vramGb: 32,
+    memType: 'GDDR7',
+    tdp: 575,
+    peak: 670,
+    recPsu: 1000,
+    baseLength: 325,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 100,
+    score1440p: 100,
+    score4k: 100,
+    partners: NVIDIA_HIGH_PARTNERS.slice(0, 5),
+  },
+
+  // NVIDIA RTX 3000 & RTX 4000 Partner Modelleri
+  {
+    chip: 'GeForce RTX 3050',
+    shortTitle: 'RTX 3050',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 130,
+    peak: 155,
+    recPsu: 500,
+    baseLength: 225,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 46,
+    score1440p: 28,
+    score4k: 12,
+    partners: NVIDIA_MAINSTREAM_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'GeForce RTX 4060',
+    shortTitle: 'RTX 4060',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 115,
+    peak: 145,
+    recPsu: 550,
+    baseLength: 235,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 63,
+    score1440p: 45,
+    score4k: 22,
+    partners: NVIDIA_MAINSTREAM_PARTNERS,
+  },
+  {
+    chip: 'GeForce RTX 4060 Ti',
+    shortTitle: 'RTX 4060 Ti 16GB',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 165,
+    peak: 200,
+    recPsu: 550,
+    baseLength: 256,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 74,
+    score1440p: 58,
+    score4k: 32,
+    partners: NVIDIA_MAINSTREAM_PARTNERS.slice(0, 5),
+  },
+  {
+    chip: 'GeForce RTX 4070',
+    shortTitle: 'RTX 4070',
+    vramGb: 12,
+    memType: 'GDDR6X',
+    tdp: 200,
+    peak: 240,
+    recPsu: 650,
+    baseLength: 270,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: true,
+    score1080p: 84,
+    score1440p: 79,
+    score4k: 52,
+    partners: NVIDIA_MAINSTREAM_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'GeForce RTX 4070 SUPER',
+    shortTitle: 'RTX 4070 Super',
+    vramGb: 12,
+    memType: 'GDDR6X',
+    tdp: 220,
+    peak: 265,
+    recPsu: 650,
+    baseLength: 280,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 87,
+    score1440p: 85,
+    score4k: 59,
+    partners: NVIDIA_HIGH_PARTNERS.slice(0, 5),
+  },
+  {
+    chip: 'GeForce RTX 4070 Ti SUPER',
+    shortTitle: 'RTX 4070 Ti Super',
+    vramGb: 16,
+    memType: 'GDDR6X',
+    tdp: 285,
+    peak: 340,
+    recPsu: 750,
+    baseLength: 300,
+    eightPin: 0,
+    twelveVhpwr: 1,
+    supportsNvenc: true,
+    score1080p: 92,
+    score1440p: 92,
+    score4k: 78,
+    partners: NVIDIA_HIGH_PARTNERS.slice(0, 5),
+  },
+
+  // AMD Radeon RX 9000 (RDNA 4) & RX 6000 / 7000 Partner Modelleri
+  {
+    chip: 'Radeon RX 9060',
+    shortTitle: 'RX 9060',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 140,
+    peak: 170,
+    recPsu: 550,
+    baseLength: 238,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 70,
+    score1440p: 52,
+    score4k: 26,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'Radeon RX 9060 XT',
+    shortTitle: 'RX 9060 XT 8GB',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 155,
+    peak: 190,
+    recPsu: 550,
+    baseLength: 246,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 78,
+    score1440p: 62,
+    score4k: 34,
+    partners: AMD_PARTNERS.slice(0, 5),
+  },
+  {
+    chip: 'Radeon RX 9060 XT',
+    shortTitle: 'RX 9060 XT 16GB',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 165,
+    peak: 200,
+    recPsu: 600,
+    baseLength: 256,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 81,
+    score1440p: 68,
+    score4k: 40,
+    partners: AMD_PARTNERS.slice(0, 6),
+  },
+  {
+    chip: 'Radeon RX 9070',
+    shortTitle: 'RX 9070',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 220,
+    peak: 265,
+    recPsu: 650,
+    baseLength: 282,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 91,
+    score1440p: 88,
+    score4k: 66,
+    partners: AMD_PARTNERS.slice(0, 6),
+  },
+  {
+    chip: 'Radeon RX 9070 XT',
+    shortTitle: 'RX 9070 XT',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 304,
+    peak: 365,
+    recPsu: 750,
+    baseLength: 298,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 96,
+    score1440p: 95,
+    score4k: 82,
+    partners: AMD_PARTNERS,
+  },
+  {
+    chip: 'Radeon RX 6650 XT',
+    shortTitle: 'RX 6650 XT',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 176,
+    peak: 210,
+    recPsu: 550,
+    baseLength: 240,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 58,
+    score1440p: 40,
+    score4k: 18,
+    partners: AMD_PARTNERS.slice(0, 3),
+  },
+  {
+    chip: 'Radeon RX 7600',
+    shortTitle: 'RX 7600',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 165,
+    peak: 198,
+    recPsu: 550,
+    baseLength: 242,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 63,
+    score1440p: 45,
+    score4k: 22,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'Radeon RX 7600 XT',
+    shortTitle: 'RX 7600 XT',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 190,
+    peak: 228,
+    recPsu: 600,
+    baseLength: 260,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 68,
+    score1440p: 52,
+    score4k: 28,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'Radeon RX 7800 XT',
+    shortTitle: 'RX 7800 XT',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 263,
+    peak: 315,
+    recPsu: 750,
+    baseLength: 290,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 85,
+    score1440p: 84,
+    score4k: 60,
+    partners: AMD_PARTNERS.slice(0, 5),
+  },
+  {
+    chip: 'Radeon RX 7900 GRE',
+    shortTitle: 'RX 7900 GRE',
+    vramGb: 16,
+    memType: 'GDDR6',
+    tdp: 260,
+    peak: 312,
+    recPsu: 750,
+    baseLength: 294,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 89,
+    score1440p: 88,
+    score4k: 68,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'Radeon RX 7900 XT',
+    shortTitle: 'RX 7900 XT',
+    vramGb: 20,
+    memType: 'GDDR6',
+    tdp: 315,
+    peak: 378,
+    recPsu: 800,
+    baseLength: 310,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 94,
+    score1440p: 95,
+    score4k: 82,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+  {
+    chip: 'Radeon RX 7900 XTX',
+    shortTitle: 'RX 7900 XTX',
+    vramGb: 24,
+    memType: 'GDDR6',
+    tdp: 355,
+    peak: 426,
+    recPsu: 850,
+    baseLength: 316,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 98,
+    score1440p: 99,
+    score4k: 92,
+    partners: AMD_PARTNERS.slice(0, 4),
+  },
+
+  // Intel Arc Battlemage & Alchemist
+  {
+    chip: 'Arc A750',
+    shortTitle: 'Arc A750',
+    vramGb: 8,
+    memType: 'GDDR6',
+    tdp: 225,
+    peak: 265,
+    recPsu: 600,
+    baseLength: 256,
+    eightPin: 2,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 58,
+    score1440p: 44,
+    score4k: 20,
+    partners: [
+      { brand: 'Intel', edition: 'Limited Edition', lengthDelta: 0, slots: 2 },
+      { brand: 'ASRock', edition: 'Challenger OC', lengthDelta: 12, slots: 2.5 },
+    ],
+  },
+  {
+    chip: 'Arc B570',
+    shortTitle: 'Arc B570',
+    vramGb: 10,
+    memType: 'GDDR6',
+    tdp: 150,
+    peak: 180,
+    recPsu: 550,
+    baseLength: 246,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 65,
+    score1440p: 48,
+    score4k: 22,
+    partners: [
+      { brand: 'ASRock', edition: 'Challenger OC', lengthDelta: 4, slots: 2 },
+      { brand: 'Sparkle', edition: 'Guardian OC', lengthDelta: 0, slots: 2.5 },
+    ],
+  },
+  {
+    chip: 'Arc B580',
+    shortTitle: 'Arc B580',
+    vramGb: 12,
+    memType: 'GDDR6',
+    tdp: 190,
+    peak: 228,
+    recPsu: 600,
+    baseLength: 258,
+    eightPin: 1,
+    twelveVhpwr: 0,
+    supportsNvenc: false,
+    score1080p: 75,
+    score1440p: 62,
+    score4k: 32,
+    partners: [
+      { brand: 'Intel', edition: 'Limited Edition', lengthDelta: 0, slots: 2 },
+      { brand: 'ASRock', edition: 'Steel Legend OC', lengthDelta: 24, slots: 2.5 },
+      { brand: 'Sparkle', edition: 'TITAN OC', lengthDelta: 30, slots: 2.5 },
+    ],
+  },
+];
+
+for (const chip of GPU_CHIPS) {
+  for (const partner of chip.partners) {
+    const lengthMm = Math.max(210, Math.min(365, chip.baseLength + partner.lengthDelta));
+    const model =
+      partner.brand === 'Intel' && chip.chip.startsWith('Arc')
+        ? `Intel ${chip.chip} ${partner.edition} ${chip.vramGb} GB`
+        : `${partner.brand} ${chip.chip} ${partner.edition} ${chip.vramGb} GB`;
+    const tierLevel = (
+      chip.score1440p >= 92
+        ? 5
+        : chip.score1440p >= 75
+          ? 4
+          : chip.score1440p >= 54
+            ? 3
+            : chip.score1440p >= 40
+              ? 2
+              : 1
+    ) as 1 | 2 | 3 | 4 | 5;
+    const connLabel =
+      chip.twelveVhpwr > 0
+        ? '1x 16-Pin 12VHPWR'
+        : `${chip.eightPin}x 8-Pin PCIe`;
+
+    GPU_DB.push({
+      id: `gpu-tr-${catalogSlug(model)}`,
+      brand: partner.brand,
+      model,
+      shortTitle: chip.shortTitle,
+      tierLevel,
+      vramGb: chip.vramGb,
+      tdpWatts: chip.tdp,
+      peakPowerWatts: chip.peak,
+      lengthMm,
+      widthSlots: partner.slots,
+      recommendedPsuWatts: chip.recPsu,
+      requiredConnectors: {
+        eightPinCount: chip.eightPin,
+        twelveVhpwrCount: chip.twelveVhpwr,
+      },
+      supportsNvenc: chip.supportsNvenc,
+      score1080p: chip.score1080p,
+      score1440p: chip.score1440p,
+      score4k: chip.score4k,
+      specSummary: `${chip.vramGb} GB ${chip.memType} · ${lengthMm} mm · ${partner.slots} Yuva · ${connLabel} · Tepe ~${chip.peak}W`,
+    });
+  }
+}
+
+// ============================================================================
+// 3. ANAKARTLAR (MOTHERBOARD) — AM4, AM5, LGA1700, LGA1851
+// ============================================================================
 
 export const MOTHERBOARD_DB: MotherboardPart[] = [
   {
@@ -559,7 +1189,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'MSI A520M-A PRO Micro-ATX',
     tierLevel: 1,
     socket: 'AM4',
-    nativeCpuGenerations: ['Ryzen 5000'],
+    nativeCpuGenerations: ['Ryzen 4000', 'Ryzen 5000'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: false,
     supportedRam: 'DDR4',
@@ -575,10 +1205,10 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
   {
     id: 'mb-b450m-bios',
     brand: 'Gigabyte',
-    model: 'Gigabyte B450M K Micro-ATX (BIOS Kontrolü)',
+    model: 'Gigabyte B450M K Micro-ATX',
     tierLevel: 1,
     socket: 'AM4',
-    nativeCpuGenerations: [],
+    nativeCpuGenerations: ['Ryzen 4000'],
     biosUpdateCpuGenerations: ['Ryzen 5000'],
     hasBiosFlashback: false,
     supportedRam: 'DDR4',
@@ -597,7 +1227,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'ASUS Prime B550M-K Micro-ATX',
     tierLevel: 2,
     socket: 'AM4',
-    nativeCpuGenerations: ['Ryzen 5000'],
+    nativeCpuGenerations: ['Ryzen 4000', 'Ryzen 5000'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: false,
     supportedRam: 'DDR4',
@@ -616,7 +1246,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'MSI PRO H610M-E DDR4',
     tierLevel: 1,
     socket: 'LGA1700',
-    nativeCpuGenerations: ['Intel 13. Nesil'],
+    nativeCpuGenerations: ['Intel 12. Nesil', 'Intel 13. Nesil'],
     biosUpdateCpuGenerations: ['Intel 14. Nesil'],
     hasBiosFlashback: false,
     supportedRam: 'DDR4',
@@ -635,7 +1265,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'ASUS Prime B760M-K D4 Micro-ATX',
     tierLevel: 2,
     socket: 'LGA1700',
-    nativeCpuGenerations: ['Intel 13. Nesil', 'Intel 14. Nesil'],
+    nativeCpuGenerations: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: false,
     supportedRam: 'DDR4',
@@ -646,7 +1276,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     formFactor: 'Micro-ATX',
     m2Slots: 2,
     cpuEpsConnectors: 1,
-    specSummary: 'LGA1700 · DDR4 · VRM 165W · Micro-ATX · 13/14. Nesil Hazır',
+    specSummary: 'LGA1700 · DDR4 · VRM 165W · Micro-ATX · 12/13/14. Nesil Hazır',
   },
   {
     id: 'mb-b760-d5',
@@ -654,7 +1284,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'MSI B760 Gaming Plus Wi-Fi ATX',
     tierLevel: 3,
     socket: 'LGA1700',
-    nativeCpuGenerations: ['Intel 13. Nesil', 'Intel 14. Nesil'],
+    nativeCpuGenerations: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: true,
     supportedRam: 'DDR5',
@@ -673,7 +1303,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'MSI MAG Z790 Tomahawk Wi-Fi ATX',
     tierLevel: 4,
     socket: 'LGA1700',
-    nativeCpuGenerations: ['Intel 13. Nesil', 'Intel 14. Nesil'],
+    nativeCpuGenerations: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: true,
     supportedRam: 'DDR5',
@@ -692,7 +1322,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'ASUS Prime B650M-K Micro-ATX',
     tierLevel: 3,
     socket: 'AM5',
-    nativeCpuGenerations: ['Ryzen 7000'],
+    nativeCpuGenerations: ['Ryzen 7000', 'Ryzen 8000'],
     biosUpdateCpuGenerations: ['Ryzen 9000'],
     hasBiosFlashback: true,
     supportedRam: 'DDR5',
@@ -711,7 +1341,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'MSI B650 Gaming Plus Wi-Fi ATX',
     tierLevel: 4,
     socket: 'AM5',
-    nativeCpuGenerations: ['Ryzen 7000'],
+    nativeCpuGenerations: ['Ryzen 7000', 'Ryzen 8000'],
     biosUpdateCpuGenerations: ['Ryzen 9000'],
     hasBiosFlashback: true,
     supportedRam: 'DDR5',
@@ -730,7 +1360,7 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     model: 'ASRock X870E Steel Legend Wi-Fi ATX',
     tierLevel: 5,
     socket: 'AM5',
-    nativeCpuGenerations: ['Ryzen 7000', 'Ryzen 9000'],
+    nativeCpuGenerations: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'],
     biosUpdateCpuGenerations: [],
     hasBiosFlashback: true,
     supportedRam: 'DDR5',
@@ -741,15 +1371,120 @@ export const MOTHERBOARD_DB: MotherboardPart[] = [
     formFactor: 'ATX',
     m2Slots: 3,
     cpuEpsConnectors: 2,
-    specSummary: 'AM5 · DDR5 (4 Yuva) · VRM 280W · ATX · Ryzen 7000/9000 Hazır',
+    specSummary: 'AM5 · DDR5 (4 Yuva) · VRM 280W · ATX · Ryzen 7000/8000/9000 Hazır',
   },
 ];
+
+interface MbBlueprint {
+  brand: 'ASUS' | 'MSI' | 'Gigabyte' | 'ASRock';
+  model: string;
+  socket: CpuSocket;
+  ram: RamGeneration;
+  formFactor: FormFactor;
+  ramSlots: number;
+  maxRamGb: number;
+  maxSpeed: number;
+  vrmWatts: number;
+  m2Slots: number;
+  eps: number;
+  flashback: boolean;
+  nativeGens: CpuGeneration[];
+  biosGens: CpuGeneration[];
+  tier: 1 | 2 | 3 | 4 | 5;
+}
+
+const EXTENDED_MOTHERBOARDS: MbBlueprint[] = [
+  // AM4 (DDR4)
+  { brand: 'ASUS', model: 'ASUS Prime A520M-R Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 64, maxSpeed: 4600, vrmWatts: 95, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 1 },
+  { brand: 'Gigabyte', model: 'Gigabyte A520M K V2 Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 64, maxSpeed: 5100, vrmWatts: 95, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 1 },
+  { brand: 'MSI', model: 'MSI B450M PRO-VDH MAX Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 3866, vrmWatts: 110, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 1 },
+  { brand: 'MSI', model: 'MSI B550M PRO-VDH Wi-Fi Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4400, vrmWatts: 150, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 2 },
+  { brand: 'Gigabyte', model: 'Gigabyte B550M DS3H Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4733, vrmWatts: 145, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 2 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming B550-PLUS Wi-Fi II ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4866, vrmWatts: 190, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 3 },
+  { brand: 'MSI', model: 'MSI MPG B550 Gaming Plus ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4400, vrmWatts: 200, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 3 },
+  { brand: 'ASRock', model: 'ASRock B550M Steel Legend Micro-ATX', socket: 'AM4', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4733, vrmWatts: 185, m2Slots: 2, eps: 1, flashback: false, nativeGens: ['Ryzen 4000', 'Ryzen 5000'], biosGens: [], tier: 3 },
+
+  // AM5 (DDR5) — A620, B650, B650E, B840, B850, X670E, X870, X870E
+  { brand: 'MSI', model: 'MSI PRO A620M-E Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 96, maxSpeed: 6400, vrmWatts: 110, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 2 },
+  { brand: 'Gigabyte', model: 'Gigabyte A620M H Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 96, maxSpeed: 6400, vrmWatts: 110, m2Slots: 1, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 2 },
+  { brand: 'ASUS', model: 'ASUS Prime A620M-K Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 96, maxSpeed: 6400, vrmWatts: 110, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 2 },
+  { brand: 'MSI', model: 'MSI PRO B650M-P Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 6800, vrmWatts: 165, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 3 },
+  { brand: 'Gigabyte', model: 'Gigabyte B650M Gaming X AX Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 8000, vrmWatts: 185, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 3 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming B650M-PLUS Wi-Fi Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7600, vrmWatts: 220, m2Slots: 2, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 4 },
+  { brand: 'ASRock', model: 'ASRock B650M-HDV/M.2 Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 96, maxSpeed: 7200, vrmWatts: 180, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 3 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix B650E-F Gaming Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 8000, vrmWatts: 250, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte B650 Eagle AX ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7600, vrmWatts: 210, m2Slots: 3, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 3 },
+  { brand: 'MSI', model: 'MSI MAG B650 Tomahawk Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7600, vrmWatts: 245, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 4 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix B650E-I Gaming Wi-Fi Mini-ITX', socket: 'AM5', ram: 'DDR5', formFactor: 'Mini-ITX', ramSlots: 2, maxRamGb: 96, maxSpeed: 8000, vrmWatts: 210, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 4 },
+  { brand: 'MSI', model: 'MSI PRO B840M-B Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 128, maxSpeed: 7600, vrmWatts: 135, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 2 },
+  { brand: 'ASUS', model: 'ASUS Prime B850M-K Micro-ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 128, maxSpeed: 8000, vrmWatts: 175, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 3 },
+  { brand: 'MSI', model: 'MSI PRO B850-P Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8200, vrmWatts: 225, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte B850 AORUS Elite Wi-Fi 7 ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8200, vrmWatts: 245, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 4 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming B850-PLUS Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8000, vrmWatts: 245, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 4 },
+  { brand: 'ASRock', model: 'ASRock B850 Steel Legend Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8000, vrmWatts: 245, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 4 },
+  { brand: 'MSI', model: 'MSI MAG X670E Tomahawk Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7800, vrmWatts: 270, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000'], biosGens: ['Ryzen 9000'], tier: 5 },
+  { brand: 'ASUS', model: 'ASUS Prime X870-P Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8000, vrmWatts: 260, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 5 },
+  { brand: 'MSI', model: 'MSI MAG X870 Tomahawk Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8400, vrmWatts: 280, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 5 },
+  { brand: 'Gigabyte', model: 'Gigabyte X870 AORUS Elite Wi-Fi 7 ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8200, vrmWatts: 280, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 5 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix X870E-E Gaming Wi-Fi ATX', socket: 'AM5', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8400, vrmWatts: 310, m2Slots: 5, eps: 2, flashback: true, nativeGens: ['Ryzen 7000', 'Ryzen 8000', 'Ryzen 9000'], biosGens: [], tier: 5 },
+
+  // Intel LGA1700 (DDR4 & DDR5)
+  { brand: 'ASUS', model: 'ASUS Prime H610M-K D4 Micro-ATX', socket: 'LGA1700', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 64, maxSpeed: 3200, vrmWatts: 115, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil'], biosGens: ['Intel 14. Nesil'], tier: 1 },
+  { brand: 'Gigabyte', model: 'Gigabyte H610M H V2 DDR4 Micro-ATX', socket: 'LGA1700', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 64, maxSpeed: 3200, vrmWatts: 115, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil'], biosGens: ['Intel 14. Nesil'], tier: 1 },
+  { brand: 'MSI', model: 'MSI PRO H610M-G DDR5 Micro-ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 96, maxSpeed: 5600, vrmWatts: 120, m2Slots: 1, eps: 1, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 2 },
+  { brand: 'MSI', model: 'MSI PRO B760M-P DDR4 Micro-ATX', socket: 'LGA1700', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 4800, vrmWatts: 165, m2Slots: 2, eps: 1, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 2 },
+  { brand: 'Gigabyte', model: 'Gigabyte B760M DS3H DDR4 Micro-ATX', socket: 'LGA1700', ram: 'DDR4', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 128, maxSpeed: 5333, vrmWatts: 165, m2Slots: 2, eps: 1, flashback: true, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 2 },
+  { brand: 'ASUS', model: 'ASUS Prime B760M-A Wi-Fi DDR5 Micro-ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7200, vrmWatts: 185, m2Slots: 2, eps: 1, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 3 },
+  { brand: 'MSI', model: 'MSI MAG B760M Mortar Wi-Fi II DDR5 Micro-ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7800, vrmWatts: 235, m2Slots: 3, eps: 2, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte B760 Gaming X AX DDR5 ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7600, vrmWatts: 220, m2Slots: 3, eps: 1, flashback: true, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 3 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming B760-PLUS Wi-Fi DDR5 ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7200, vrmWatts: 230, m2Slots: 3, eps: 2, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 4 },
+  { brand: 'ASUS', model: 'ASUS Prime Z790-P Wi-Fi DDR5 ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7200, vrmWatts: 270, m2Slots: 3, eps: 2, flashback: false, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte Z790 AORUS Elite AX DDR5 ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 7600, vrmWatts: 295, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 5 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix Z790-F Gaming Wi-Fi II DDR5 ATX', socket: 'LGA1700', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 192, maxSpeed: 8000, vrmWatts: 310, m2Slots: 5, eps: 2, flashback: true, nativeGens: ['Intel 12. Nesil', 'Intel 13. Nesil', 'Intel 14. Nesil'], biosGens: [], tier: 5 },
+
+  // Intel LGA1851 (Core Ultra 200 — DDR5)
+  { brand: 'ASUS', model: 'ASUS Prime H810M-A Wi-Fi Micro-ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 2, maxRamGb: 128, maxSpeed: 6400, vrmWatts: 135, m2Slots: 2, eps: 1, flashback: false, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 2 },
+  { brand: 'MSI', model: 'MSI PRO B860M-A Wi-Fi Micro-ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8600, vrmWatts: 200, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 3 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming B860M-PLUS Wi-Fi Micro-ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'Micro-ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8600, vrmWatts: 225, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte B860 Gaming X Wi-Fi 6E ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8800, vrmWatts: 235, m2Slots: 3, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 4 },
+  { brand: 'ASRock', model: 'ASRock B860 Steel Legend Wi-Fi ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8666, vrmWatts: 235, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 4 },
+  { brand: 'MSI', model: 'MSI MAG Z890 Tomahawk Wi-Fi ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 9200, vrmWatts: 300, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 5 },
+  { brand: 'ASUS', model: 'ASUS Prime Z890-P Wi-Fi ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 8600, vrmWatts: 275, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 4 },
+  { brand: 'Gigabyte', model: 'Gigabyte Z890 AORUS Elite Wi-Fi 7 ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 9200, vrmWatts: 300, m2Slots: 4, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 5 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix Z890-F Gaming Wi-Fi ATX', socket: 'LGA1851', ram: 'DDR5', formFactor: 'ATX', ramSlots: 4, maxRamGb: 256, maxSpeed: 9066, vrmWatts: 320, m2Slots: 5, eps: 2, flashback: true, nativeGens: ['Core Ultra 200'], biosGens: [], tier: 5 },
+];
+
+for (const mb of EXTENDED_MOTHERBOARDS) {
+  MOTHERBOARD_DB.push({
+    id: `mb-tr-${catalogSlug(mb.model)}`,
+    brand: mb.brand,
+    model: mb.model,
+    tierLevel: mb.tier,
+    socket: mb.socket,
+    nativeCpuGenerations: mb.nativeGens,
+    biosUpdateCpuGenerations: mb.biosGens,
+    hasBiosFlashback: mb.flashback,
+    supportedRam: mb.ram,
+    ramSlots: mb.ramSlots,
+    maxRamGb: mb.maxRamGb,
+    maxRamSpeedMhz: mb.maxSpeed,
+    vrmMaxCpuWatts: mb.vrmWatts,
+    formFactor: mb.formFactor,
+    m2Slots: mb.m2Slots,
+    cpuEpsConnectors: mb.eps,
+    specSummary: `${mb.socket} · ${mb.ram} (${mb.ramSlots} Yuva) · VRM ${mb.vrmWatts}W · ${mb.formFactor} · ${mb.m2Slots}x M.2`,
+  });
+}
+
+// ============================================================================
+// 4. RAM BELLEKLER — DDR4 & DDR5
+// ============================================================================
 
 export const RAM_DB: RamPart[] = [
   {
     id: 'ram-16-d4',
     brand: 'Corsair',
-    model: '16 GB (2x8) Vengeance LPX DDR4 3200 MHz',
+    model: 'Corsair 16 GB (2x8) Vengeance LPX DDR4 3200 MHz',
     tierLevel: 1,
     generation: 'DDR4',
     capacityGb: 16,
@@ -762,7 +1497,7 @@ export const RAM_DB: RamPart[] = [
   {
     id: 'ram-32-d4',
     brand: 'G.Skill',
-    model: '32 GB (2x16) Ripjaws V DDR4 3600 MHz',
+    model: 'G.Skill 32 GB (2x16) Ripjaws V DDR4 3600 MHz',
     tierLevel: 2,
     generation: 'DDR4',
     capacityGb: 32,
@@ -775,7 +1510,7 @@ export const RAM_DB: RamPart[] = [
   {
     id: 'ram-16-d5',
     brand: 'Kingston',
-    model: '16 GB (2x8) Fury Beast DDR5 5600 MHz',
+    model: 'Kingston 16 GB (2x8) Fury Beast DDR5 5600 MHz',
     tierLevel: 2,
     generation: 'DDR5',
     capacityGb: 16,
@@ -788,7 +1523,7 @@ export const RAM_DB: RamPart[] = [
   {
     id: 'ram-32-d5',
     brand: 'G.Skill',
-    model: '32 GB (2x16) Flare X5 DDR5 6000 MHz',
+    model: 'G.Skill 32 GB (2x16) Flare X5 DDR5 6000 MHz',
     tierLevel: 4,
     generation: 'DDR5',
     capacityGb: 32,
@@ -801,7 +1536,7 @@ export const RAM_DB: RamPart[] = [
   {
     id: 'ram-64-d5',
     brand: 'Corsair',
-    model: '64 GB (2x32) Vengeance DDR5 6000 MHz',
+    model: 'Corsair 64 GB (2x32) Vengeance DDR5 6000 MHz',
     tierLevel: 5,
     generation: 'DDR5',
     capacityGb: 64,
@@ -826,6 +1561,83 @@ export const RAM_DB: RamPart[] = [
     specSummary: 'DDR5 · 4x16 GB (4 Yuva Gerektirir) · 6000 MHz',
   },
 ];
+
+interface RamBlueprint {
+  brand: string;
+  model: string;
+  gen: RamGeneration;
+  capGb: number;
+  modules: number;
+  speed: number;
+  cl: string;
+  rgb: boolean;
+}
+
+const EXTENDED_RAMS: RamBlueprint[] = [
+  // DDR4 Türkiye Pazarı Popüler Kitler
+  { brand: 'Kingston', model: 'Kingston 16 GB (2x8) FURY Beast DDR4 3200 MHz CL16', gen: 'DDR4', capGb: 16, modules: 2, speed: 3200, cl: 'CL16', rgb: false },
+  { brand: 'Kingston', model: 'Kingston 16 GB (1x16) FURY Beast DDR4 3200 MHz CL16', gen: 'DDR4', capGb: 16, modules: 1, speed: 3200, cl: 'CL16', rgb: false },
+  { brand: 'G.Skill', model: 'G.Skill 16 GB (2x8) Ripjaws V DDR4 3600 MHz CL18', gen: 'DDR4', capGb: 16, modules: 2, speed: 3600, cl: 'CL18', rgb: false },
+  { brand: 'XPG', model: 'XPG 16 GB (2x8) Gammix D35 DDR4 3200 MHz CL16', gen: 'DDR4', capGb: 16, modules: 2, speed: 3200, cl: 'CL16', rgb: false },
+  { brand: 'Lexar', model: 'Lexar 16 GB (2x8) Thor DDR4 3200 MHz CL16', gen: 'DDR4', capGb: 16, modules: 2, speed: 3200, cl: 'CL16', rgb: false },
+  { brand: 'Corsair', model: 'Corsair 16 GB (2x8) Vengeance RGB Pro DDR4 3600 MHz CL18', gen: 'DDR4', capGb: 16, modules: 2, speed: 3600, cl: 'CL18', rgb: true },
+  { brand: 'Corsair', model: 'Corsair 32 GB (2x16) Vengeance LPX DDR4 3200 MHz CL16', gen: 'DDR4', capGb: 32, modules: 2, speed: 3200, cl: 'CL16', rgb: false },
+  { brand: 'Kingston', model: 'Kingston 32 GB (2x16) FURY Beast RGB DDR4 3600 MHz CL18', gen: 'DDR4', capGb: 32, modules: 2, speed: 3600, cl: 'CL18', rgb: true },
+  { brand: 'XPG', model: 'XPG 32 GB (2x16) Spectrix D35G RGB DDR4 3600 MHz CL18', gen: 'DDR4', capGb: 32, modules: 2, speed: 3600, cl: 'CL18', rgb: true },
+  { brand: 'Crucial', model: 'Crucial 32 GB (2x16) Pro DDR4 3200 MHz CL22', gen: 'DDR4', capGb: 32, modules: 2, speed: 3200, cl: 'CL22', rgb: false },
+  { brand: 'G.Skill', model: 'G.Skill 64 GB (2x32) Ripjaws V DDR4 3600 MHz CL18', gen: 'DDR4', capGb: 64, modules: 2, speed: 3600, cl: 'CL18', rgb: false },
+
+  // DDR5 Türkiye Pazarı Popüler Kitler
+  { brand: 'Kingston', model: 'Kingston 16 GB (1x16) FURY Beast DDR5 5600 MHz CL36', gen: 'DDR5', capGb: 16, modules: 1, speed: 5600, cl: 'CL36', rgb: false },
+  { brand: 'Crucial', model: 'Crucial 16 GB (1x16) DDR5 5600 MHz CL46', gen: 'DDR5', capGb: 16, modules: 1, speed: 5600, cl: 'CL46', rgb: false },
+  { brand: 'XPG', model: 'XPG 16 GB (1x16) Lancer Blade DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 16, modules: 1, speed: 6000, cl: 'CL30', rgb: false },
+  { brand: 'Patriot', model: 'Patriot 32 GB (2x16) Viper Venom DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: false },
+  { brand: 'Patriot', model: 'Patriot 32 GB (2x16) Viper Venom RGB DDR5 6400 MHz CL32', gen: 'DDR5', capGb: 32, modules: 2, speed: 6400, cl: 'CL32', rgb: true },
+  { brand: 'Corsair', model: 'Corsair 32 GB (2x16) Vengeance DDR5 5600 MHz CL36', gen: 'DDR5', capGb: 32, modules: 2, speed: 5600, cl: 'CL36', rgb: false },
+  { brand: 'Corsair', model: 'Corsair 32 GB (2x16) Vengeance RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Corsair', model: 'Corsair 32 GB (2x16) Dominator Titanium RGB DDR5 6400 MHz CL32', gen: 'DDR5', capGb: 32, modules: 2, speed: 6400, cl: 'CL32', rgb: true },
+  { brand: 'G.Skill', model: 'G.Skill 32 GB (2x16) Trident Z5 Neo RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'G.Skill', model: 'G.Skill 32 GB (2x16) Trident Z5 RGB DDR5 6400 MHz CL32', gen: 'DDR5', capGb: 32, modules: 2, speed: 6400, cl: 'CL32', rgb: true },
+  { brand: 'G.Skill', model: 'G.Skill 32 GB (2x16) Trident Z5 RGB DDR5 7200 MHz CL34', gen: 'DDR5', capGb: 32, modules: 2, speed: 7200, cl: 'CL34', rgb: true },
+  { brand: 'Kingston', model: 'Kingston 32 GB (2x16) FURY Beast DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: false },
+  { brand: 'Kingston', model: 'Kingston 32 GB (2x16) FURY Beast RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Kingston', model: 'Kingston 32 GB (2x16) FURY Renegade RGB DDR5 6400 MHz CL32', gen: 'DDR5', capGb: 32, modules: 2, speed: 6400, cl: 'CL32', rgb: true },
+  { brand: 'XPG', model: 'XPG 32 GB (2x16) Lancer Blade DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: false },
+  { brand: 'XPG', model: 'XPG 32 GB (2x16) Lancer RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Lexar', model: 'Lexar 32 GB (2x16) Ares RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Lexar', model: 'Lexar 32 GB (2x16) Thor OC DDR5 6000 MHz CL32', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL32', rgb: false },
+  { brand: 'Crucial', model: 'Crucial 32 GB (2x16) Pro OC DDR5 6000 MHz CL36', gen: 'DDR5', capGb: 32, modules: 2, speed: 6000, cl: 'CL36', rgb: false },
+  { brand: 'Corsair', model: 'Corsair 48 GB (2x24) Vengeance RGB DDR5 6400 MHz CL32', gen: 'DDR5', capGb: 48, modules: 2, speed: 6400, cl: 'CL32', rgb: true },
+  { brand: 'G.Skill', model: 'G.Skill 48 GB (2x24) Trident Z5 RGB DDR5 7200 MHz CL36', gen: 'DDR5', capGb: 48, modules: 2, speed: 7200, cl: 'CL36', rgb: true },
+  { brand: 'G.Skill', model: 'G.Skill 64 GB (2x32) Trident Z5 Neo RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 64, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Kingston', model: 'Kingston 64 GB (2x32) FURY Beast RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 64, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'XPG', model: 'XPG 64 GB (2x32) Lancer RGB DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 64, modules: 2, speed: 6000, cl: 'CL30', rgb: true },
+  { brand: 'Corsair', model: 'Corsair 96 GB (2x48) Vengeance DDR5 6000 MHz CL30', gen: 'DDR5', capGb: 96, modules: 2, speed: 6000, cl: 'CL30', rgb: false },
+];
+
+for (const ram of EXTENDED_RAMS) {
+  const channelConfig = ram.modules >= 2 ? 'Çift Kanal' : 'Tek Modül';
+  const tierLevel = (
+    ram.capGb >= 64 ? 5 : ram.capGb >= 32 && ram.gen === 'DDR5' ? 4 : ram.capGb >= 32 ? 3 : 2
+  ) as 1 | 2 | 3 | 4 | 5;
+  RAM_DB.push({
+    id: `ram-tr-${catalogSlug(ram.model)}`,
+    brand: ram.brand,
+    model: ram.model,
+    tierLevel,
+    generation: ram.gen,
+    capacityGb: ram.capGb,
+    modulesCount: ram.modules,
+    speedMhz: ram.speed,
+    latency: ram.cl,
+    channelConfig,
+    specSummary: `${ram.gen} · ${ram.capGb} GB (${ram.modules} Modül) · ${ram.speed} MHz ${ram.cl}${ram.rgb ? ' · ARGB' : ''}`,
+  });
+}
+
+// ============================================================================
+// 5. SSD DEPOLAMA — PCIe 3.0 / 4.0 / 5.0 NVMe M.2
+// ============================================================================
 
 export const SSD_DB: SsdPart[] = [
   {
@@ -884,6 +1696,71 @@ export const SSD_DB: SsdPart[] = [
     specSummary: '2 TB · PCIe 5.0 · 12.400 MB/sn Okuma',
   },
 ];
+
+interface SsdBlueprint {
+  brand: string;
+  model: string;
+  capGb: number;
+  iface: 'PCIe 3.0' | 'PCIe 4.0' | 'PCIe 5.0';
+  speedMb: number;
+  dram: boolean;
+}
+
+const EXTENDED_SSDS: SsdBlueprint[] = [
+  { brand: 'Kioxia', model: 'Kioxia Exceria G2 500 GB NVMe PCIe 3.0 M.2 SSD', capGb: 500, iface: 'PCIe 3.0', speedMb: 2100, dram: true },
+  { brand: 'Kioxia', model: 'Kioxia Exceria G2 1 TB NVMe PCIe 3.0 M.2 SSD', capGb: 1000, iface: 'PCIe 3.0', speedMb: 2100, dram: true },
+  { brand: 'Samsung', model: 'Samsung 980 500 GB NVMe PCIe 3.0 M.2 SSD', capGb: 500, iface: 'PCIe 3.0', speedMb: 3100, dram: false },
+  { brand: 'Samsung', model: 'Samsung 980 1 TB NVMe PCIe 3.0 M.2 SSD', capGb: 1000, iface: 'PCIe 3.0', speedMb: 3500, dram: false },
+  { brand: 'Lexar', model: 'Lexar NM620 512 GB NVMe PCIe 3.0 M.2 SSD', capGb: 512, iface: 'PCIe 3.0', speedMb: 3500, dram: false },
+  { brand: 'Kingston', model: 'Kingston NV3 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 6000, dram: false },
+  { brand: 'Kingston', model: 'Kingston NV3 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 6000, dram: false },
+  { brand: 'Kingston', model: 'Kingston KC3000 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7000, dram: true },
+  { brand: 'Kingston', model: 'Kingston KC3000 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7000, dram: true },
+  { brand: 'Kingston', model: 'Kingston Fury Renegade 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'Kingston', model: 'Kingston Fury Renegade 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'WD', model: 'WD Black SN770 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 5150, dram: false },
+  { brand: 'WD', model: 'WD Black SN770 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 5150, dram: false },
+  { brand: 'WD', model: 'WD Black SN850X 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'WD', model: 'WD Black SN850X 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'WD', model: 'WD Black SN850X 4 TB NVMe PCIe 4.0 M.2 SSD', capGb: 4000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'Samsung', model: 'Samsung 980 PRO 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7000, dram: true },
+  { brand: 'Samsung', model: 'Samsung 990 EVO Plus 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7150, dram: false },
+  { brand: 'Samsung', model: 'Samsung 990 EVO Plus 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7250, dram: false },
+  { brand: 'Samsung', model: 'Samsung 990 PRO 4 TB NVMe PCIe 4.0 M.2 SSD', capGb: 4000, iface: 'PCIe 4.0', speedMb: 7450, dram: true },
+  { brand: 'Crucial', model: 'Crucial P3 Plus 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 5000, dram: false },
+  { brand: 'Crucial', model: 'Crucial T500 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'Crucial', model: 'Crucial T705 2 TB NVMe PCIe 5.0 M.2 SSD', capGb: 2000, iface: 'PCIe 5.0', speedMb: 14500, dram: true },
+  { brand: 'Kioxia', model: 'Kioxia Exceria Plus G3 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 5000, dram: false },
+  { brand: 'Kioxia', model: 'Kioxia Exceria PRO 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'Kioxia', model: 'Kioxia Exceria PRO 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7300, dram: true },
+  { brand: 'Lexar', model: 'Lexar NM790 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7400, dram: false },
+  { brand: 'Lexar', model: 'Lexar NM790 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7400, dram: false },
+  { brand: 'XPG', model: 'XPG Gammix S70 Blade 1 TB NVMe PCIe 4.0 M.2 SSD', capGb: 1000, iface: 'PCIe 4.0', speedMb: 7400, dram: true },
+  { brand: 'Corsair', model: 'Corsair MP600 PRO LPX 2 TB NVMe PCIe 4.0 M.2 SSD', capGb: 2000, iface: 'PCIe 4.0', speedMb: 7100, dram: true },
+  { brand: 'Corsair', model: 'Corsair MP700 PRO 2 TB NVMe PCIe 5.0 M.2 SSD', capGb: 2000, iface: 'PCIe 5.0', speedMb: 12400, dram: true },
+];
+
+for (const ssd of EXTENDED_SSDS) {
+  const capLabel = ssd.capGb >= 1000 ? `${ssd.capGb / 1000} TB` : `${ssd.capGb} GB`;
+  const tierLevel = (
+    ssd.iface === 'PCIe 5.0' || ssd.capGb >= 4000 ? 5 : ssd.dram && ssd.capGb >= 2000 ? 4 : ssd.dram ? 3 : ssd.capGb >= 1000 ? 2 : 1
+  ) as 1 | 2 | 3 | 4 | 5;
+  SSD_DB.push({
+    id: `ssd-tr-${catalogSlug(ssd.model)}`,
+    brand: ssd.brand,
+    model: ssd.model,
+    tierLevel,
+    capacityGb: ssd.capGb,
+    interfaceType: ssd.iface,
+    readSpeedMb: ssd.speedMb,
+    hasDramCache: ssd.dram,
+    specSummary: `${capLabel} · ${ssd.iface} NVMe M.2 · ${ssd.speedMb} MB/sn${ssd.dram ? ' · DRAM Önbellekli' : ''}`,
+  });
+}
+
+// ============================================================================
+// 6. GÜÇ KAYNAKLARI (PSU) — Bronze / Gold / Platinum · ATX 2.4 / 3.0 / 3.1
+// ============================================================================
 
 export const PSU_DB: PsuPart[] = [
   {
@@ -960,6 +1837,79 @@ export const PSU_DB: PsuPart[] = [
   },
 ];
 
+interface PsuBlueprint {
+  brand: string;
+  model: string;
+  wattage: number;
+  efficiency: string;
+  modular: 'Tam Modüler' | 'Yarı Modüler' | 'Sabit Kablo';
+  atx: 'ATX 2.4' | 'ATX 3.0' | 'ATX 3.1';
+  pcie8: number;
+  twelveVhpwr: number;
+  eps8: number;
+}
+
+const EXTENDED_PSUS: PsuBlueprint[] = [
+  { brand: 'MSI', model: 'MSI MAG A550BN 550W 80+ Bronze PSU', wattage: 550, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 2, twelveVhpwr: 0, eps8: 1 },
+  { brand: 'DeepCool', model: 'DeepCool PK550D 550W 80+ Bronze PSU', wattage: 550, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 2, twelveVhpwr: 0, eps8: 1 },
+  { brand: 'FSP', model: 'FSP Hyper 80+ Pro 650W Bronze PSU', wattage: 650, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 2, twelveVhpwr: 0, eps8: 2 },
+  { brand: 'DeepCool', model: 'DeepCool PK650D 650W 80+ Bronze PSU', wattage: 650, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 2, twelveVhpwr: 0, eps8: 2 },
+  { brand: 'Corsair', model: 'Corsair CX650 650W 80+ Bronze PSU', wattage: 650, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 2, twelveVhpwr: 0, eps8: 1 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming 650B 650W 80+ Bronze PSU', wattage: 650, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 2.4', pcie8: 4, twelveVhpwr: 0, eps8: 2 },
+  { brand: 'MSI', model: 'MSI MAG A650GL 650W 80+ Gold Tam Modüler PSU', wattage: 650, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 3, twelveVhpwr: 0, eps8: 2 },
+  { brand: 'FSP', model: 'FSP Hydro K Pro 750W 80+ Bronze ATX 3.0 PSU', wattage: 750, efficiency: '80+ Bronze', modular: 'Sabit Kablo', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'MSI', model: 'MSI MAG A750GL PCIE5 750W 80+ Gold Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 3, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'DeepCool', model: 'DeepCool PN750M 750W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 3, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'FSP', model: 'FSP VITA GM 750W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming 750G 750W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 3, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'NZXT', model: 'NZXT C750 Gold 750W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 3, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Seasonic', model: 'Seasonic Focus GX-750 750W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 3, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Thermaltake', model: 'Thermaltake Toughpower GF A3 750W 80+ Gold ATX 3.0 PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Gigabyte', model: 'Gigabyte UD750GM PG5 750W 80+ Gold ATX 3.0 PSU', wattage: 750, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'MSI', model: 'MSI MAG A850GL PCIE5 850W 80+ Gold Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Corsair', model: 'Corsair RM850e 850W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Corsair', model: 'Corsair RM850x Shift 850W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 5, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'FSP', model: 'FSP VITA GM 850W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'DeepCool', model: 'DeepCool PN850M 850W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming 850G 850W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'NZXT', model: 'NZXT C850 Gold 850W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Seasonic', model: 'Seasonic Focus GX-850 850W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 850, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 4, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'MSI', model: 'MSI MPG A1000G PCIE5 1000W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 6, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Corsair', model: 'Corsair RM1000x 1000W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 6, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'FSP', model: 'FSP VITA GM 1000W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 5, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming 1000G 1000W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 5, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'NZXT', model: 'NZXT C1000 Gold 1000W 80+ Gold ATX 3.1 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 6, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Seasonic', model: 'Seasonic Vertex GX-1000 1000W 80+ Gold ATX 3.0 Tam Modüler PSU', wattage: 1000, efficiency: '80+ Gold', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 6, twelveVhpwr: 1, eps8: 2 },
+  { brand: 'Corsair', model: 'Corsair HX1200i 1200W 80+ Platinum ATX 3.1 Tam Modüler PSU', wattage: 1200, efficiency: '80+ Platinum', modular: 'Tam Modüler', atx: 'ATX 3.1', pcie8: 6, twelveVhpwr: 2, eps8: 2 },
+  { brand: 'ASUS', model: 'ASUS ROG Thor 1200P2 1200W 80+ Platinum II Tam Modüler PSU', wattage: 1200, efficiency: '80+ Platinum', modular: 'Tam Modüler', atx: 'ATX 3.0', pcie8: 6, twelveVhpwr: 1, eps8: 2 },
+];
+
+for (const psu of EXTENDED_PSUS) {
+  const tierLevel = (
+    psu.wattage >= 1000 ? 5 : psu.wattage >= 750 && psu.efficiency.includes('Gold') ? 4 : psu.wattage >= 650 ? 3 : 2
+  ) as 1 | 2 | 3 | 4 | 5;
+  PSU_DB.push({
+    id: `psu-tr-${catalogSlug(psu.model)}`,
+    brand: psu.brand,
+    model: psu.model,
+    tierLevel,
+    wattage: psu.wattage,
+    efficiency: psu.efficiency,
+    modular: psu.modular,
+    atxStandard: psu.atx,
+    connectors: {
+      pcie8PinCount: psu.pcie8,
+      twelveVhpwrCount: psu.twelveVhpwr,
+      eps8PinCount: psu.eps8,
+    },
+    specSummary: `${psu.wattage}W · ${psu.efficiency} · ${psu.atx} · ${psu.modular}`,
+  });
+}
+
+// ============================================================================
+// 7. BİLGİSAYAR KASALARI (CASE) — Mesh ATX, Compact mATX/ITX, Akvaryum & XL
+// ============================================================================
+
 export const CASE_DB: CasePart[] = [
   {
     id: 'case-matx-compact',
@@ -1029,6 +1979,75 @@ export const CASE_DB: CasePart[] = [
   },
 ];
 
+interface CaseBlueprint {
+  brand: string;
+  model: string;
+  forms: FormFactor[];
+  maxGpuMm: number;
+  slots: number;
+  maxCoolerMm: number;
+  radiators: number[];
+  airflow: string;
+}
+
+const EXTENDED_CASES: CaseBlueprint[] = [
+  { brand: 'Vento', model: 'Vento VG15FE ARGB Mesh ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 330, slots: 7, maxCoolerMm: 160, radiators: [120, 240], airflow: '4x ARGB Fanlı Mesh' },
+  { brand: 'MSI', model: 'MSI MAG Forge M100A Acrylic Micro-ATX Kasa', forms: ['Micro-ATX', 'Mini-ITX'], maxGpuMm: 300, slots: 4, maxCoolerMm: 160, radiators: [120, 240], airflow: 'Kompakt Mesh mATX' },
+  { brand: 'MSI', model: 'MSI MAG Forge 120A Airflow ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 330, slots: 7, maxCoolerMm: 160, radiators: [120, 240], airflow: '6x Auto RGB Fanlı Mesh' },
+  { brand: 'MSI', model: 'MSI MAG Forge 320R Airflow ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 390, slots: 7, maxCoolerMm: 160, radiators: [120, 240, 360], airflow: 'Yüksek Hava Akışı ATX' },
+  { brand: 'MSI', model: 'MSI MAG PANO 100R PZ Akvaryum ATX Kasa (Siyah)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 380, slots: 8, maxCoolerMm: 166, radiators: [120, 240, 360], airflow: '270° Panoramik Akvaryum' },
+  { brand: 'MSI', model: 'MSI MAG PANO 100R PZ Akvaryum ATX Kasa (Beyaz)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 380, slots: 8, maxCoolerMm: 166, radiators: [120, 240, 360], airflow: '270° Panoramik Akvaryum' },
+  { brand: 'DeepCool', model: 'DeepCool CC560 V2 ATX Mesh Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 370, slots: 7, maxCoolerMm: 163, radiators: [120, 240, 360], airflow: '4x LED Fanlı Mesh' },
+  { brand: 'DeepCool', model: 'DeepCool CH560 Digital ATX Mesh Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 380, slots: 7, maxCoolerMm: 175, radiators: [120, 240, 360], airflow: 'Hibrit Temperli Cam & Mesh' },
+  { brand: 'DeepCool', model: 'DeepCool CH370 Micro-ATX Kasa', forms: ['Micro-ATX', 'Mini-ITX'], maxGpuMm: 320, slots: 4, maxCoolerMm: 165, radiators: [120, 240, 360], airflow: 'Kompakt Hava Akışı mATX' },
+  { brand: 'XPG', model: 'XPG Valor Air ATX Mesh Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 335, slots: 7, maxCoolerMm: 166, radiators: [120, 240, 360], airflow: 'Manyetik Ön Mesh' },
+  { brand: 'NZXT', model: 'NZXT H5 Flow (2024) ATX Mesh Kasa (Siyah)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 410, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 280, 360], airflow: 'Yüksek Hava Akışı ATX' },
+  { brand: 'NZXT', model: 'NZXT H5 Flow (2024) ATX Mesh Kasa (Beyaz)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 410, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 280, 360], airflow: 'Yüksek Hava Akışı ATX' },
+  { brand: 'NZXT', model: 'NZXT H6 Flow Çift Odacıklı Akvaryum ATX Kasa (Siyah)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 365, slots: 7, maxCoolerMm: 163, radiators: [120, 240, 280, 360], airflow: 'Panoramik Çift Odacıklı Akvaryum' },
+  { brand: 'NZXT', model: 'NZXT H6 Flow Çift Odacıklı Akvaryum ATX Kasa (Beyaz)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 365, slots: 7, maxCoolerMm: 163, radiators: [120, 240, 280, 360], airflow: 'Panoramik Çift Odacıklı Akvaryum' },
+  { brand: 'NZXT', model: 'NZXT H7 Flow (2024) ATX Mesh Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 410, slots: 7, maxCoolerMm: 185, radiators: [120, 240, 280, 360], airflow: 'Full-Mesh Yüksek Hava Akışı' },
+  { brand: 'NZXT', model: 'NZXT H9 Flow Akvaryum ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 435, slots: 7, maxCoolerMm: 165, radiators: [120, 240, 280, 360], airflow: 'Çift Odacıklı Panoramik Akvaryum' },
+  { brand: 'Corsair', model: 'Corsair 3000D RGB Airflow ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 360, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 360], airflow: '3x AR120 RGB Fanlı Mesh' },
+  { brand: 'Corsair', model: 'Corsair 3500X ARGB Akvaryum ATX Kasa (Siyah)', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 410, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 280, 360], airflow: 'Sarılabilen Cam Akvaryum' },
+  { brand: 'Corsair', model: 'Corsair 5000D Airflow ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 400, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 280, 360], airflow: 'Geniş ATX Airflow' },
+  { brand: 'Corsair', model: 'Corsair 6500X Çift Odacıklı Akvaryum ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 400, slots: 8, maxCoolerMm: 190, radiators: [120, 240, 280, 360], airflow: 'Panoramik Çift Odacıklı Akvaryum' },
+  { brand: 'Lian Li', model: 'Lian Li A3-mATX Micro-ATX Kompakt Kasa', forms: ['Micro-ATX', 'Mini-ITX'], maxGpuMm: 415, slots: 4, maxCoolerMm: 165, radiators: [120, 240, 360], airflow: 'Modüler Mesh Kompakt' },
+  { brand: 'Lian Li', model: 'Lian Li Lancool 216 RGB ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 392, slots: 7, maxCoolerMm: 180, radiators: [120, 240, 280, 360], airflow: '2x 160mm Ön Fanlı Mesh' },
+  { brand: 'Lian Li', model: 'Lian Li O11 Vision Panoramik Akvaryum ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 455, slots: 7, maxCoolerMm: 167, radiators: [120, 240, 360], airflow: '3 Tarafı Cam Akvaryum' },
+  { brand: 'Lian Li', model: 'Lian Li O11 Dynamic EVO RGB ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 455, slots: 7, maxCoolerMm: 167, radiators: [120, 240, 280, 360], airflow: 'Amiral Gemisi Akvaryum' },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming GT301 ARGB ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 320, slots: 7, maxCoolerMm: 160, radiators: [120, 240, 360], airflow: 'Petek Ön Mesh Panel' },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming GT502 Çift Odacıklı Akvaryum ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 400, slots: 8, maxCoolerMm: 163, radiators: [120, 240, 280, 360], airflow: 'Panoramik Çift Odacıklı Akvaryum' },
+  { brand: 'Phanteks', model: 'Phanteks XT Pro Ultra D-RGB ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 415, slots: 7, maxCoolerMm: 184, radiators: [120, 240, 360], airflow: '4x 140mm D-RGB Mesh' },
+  { brand: 'Fractal Design', model: 'Fractal Design North Ceviz Ahşap Mesh ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 355, slots: 7, maxCoolerMm: 170, radiators: [120, 240, 280, 360], airflow: 'Doğal Ahşap Ön Mesh' },
+  { brand: 'Thermaltake', model: 'Thermaltake View 270 TG ARGB Akvaryum ATX Kasa', forms: ['ATX', 'Micro-ATX', 'Mini-ITX'], maxGpuMm: 420, slots: 7, maxCoolerMm: 180, radiators: [120, 240, 360], airflow: 'Panoramik Temperli Cam Akvaryum' },
+];
+
+for (const c of EXTENDED_CASES) {
+  const tierLevel = (c.maxGpuMm >= 415 ? 5 : c.maxGpuMm >= 380 ? 4 : c.maxGpuMm >= 350 ? 3 : 2) as
+    | 1
+    | 2
+    | 3
+    | 4
+    | 5;
+  CASE_DB.push({
+    id: `case-tr-${catalogSlug(c.model)}`,
+    brand: c.brand,
+    model: c.model,
+    tierLevel,
+    supportedFormFactors: c.forms,
+    maxGpuLengthMm: c.maxGpuMm,
+    expansionSlots: c.slots,
+    maxCoolerHeightMm: c.maxCoolerMm,
+    supportedRadiatorMm: c.radiators,
+    airflowType: c.airflow,
+    specSummary: `${c.forms.join('/')} · Maks. GPU ${c.maxGpuMm} mm · Soğutucu ${c.maxCoolerMm} mm · ${Math.max(...c.radiators)}mm Radyatör`,
+  });
+}
+
+// ============================================================================
+// 8. İŞLEMCİ SOĞUTUCULARI (COOLER) — AM4, AM5, LGA1700, LGA1851
+// ============================================================================
+
 export const CPU_COOLER_DB: CoolerPart[] = [
   {
     id: 'cooler-stock-wraith',
@@ -1048,11 +2067,11 @@ export const CPU_COOLER_DB: CoolerPart[] = [
     model: 'DeepCool AK400 Kule Tipi Hava Soğutucu',
     tierLevel: 2,
     coolerType: 'Hava Soğutma',
-    supportedSockets: ['AM4', 'AM5', 'LGA1700'],
+    supportedSockets: ['AM4', 'AM5', 'LGA1700', 'LGA1851'],
     maxTdpCapacityWatts: 180,
     heightMm: 155,
     radiatorMm: null,
-    specSummary: '4 Bakır Boru Hava · 155 mm · Maks. 180W · AM4/AM5/LGA1700',
+    specSummary: '4 Bakır Boru Hava · 155 mm · Maks. 180W · AM4/AM5/LGA1700/LGA1851',
   },
   {
     id: 'cooler-pa120',
@@ -1060,11 +2079,11 @@ export const CPU_COOLER_DB: CoolerPart[] = [
     model: 'Thermalright Peerless Assassin 120 SE',
     tierLevel: 4,
     coolerType: 'Hava Soğutma',
-    supportedSockets: ['AM4', 'AM5', 'LGA1700'],
-    maxTdpCapacityWatts: 245,
+    supportedSockets: ['AM4', 'AM5', 'LGA1700', 'LGA1851'],
+    maxTdpCapacityWatts: 255,
     heightMm: 155,
     radiatorMm: null,
-    specSummary: 'Çift Kule Hava · 155 mm · Maks. 245W · AM4/AM5/LGA1700',
+    specSummary: 'Çift Kule Hava · 155 mm · Maks. 255W · AM4/AM5/LGA1700/LGA1851',
   },
   {
     id: 'cooler-aio-240',
@@ -1072,11 +2091,11 @@ export const CPU_COOLER_DB: CoolerPart[] = [
     model: 'Arctic Liquid Freezer III 240 mm AIO',
     tierLevel: 4,
     coolerType: 'Sıvı Soğutma',
-    supportedSockets: ['AM4', 'AM5', 'LGA1700'],
+    supportedSockets: ['AM4', 'AM5', 'LGA1700', 'LGA1851'],
     maxTdpCapacityWatts: 280,
     heightMm: null,
     radiatorMm: 240,
-    specSummary: '240 mm Sıvı Soğutma · Maks. 280W · AM4/AM5/LGA1700',
+    specSummary: '240 mm Sıvı Soğutma · Maks. 280W · AM4/AM5/LGA1700/LGA1851',
   },
   {
     id: 'cooler-aio-360',
@@ -1084,11 +2103,11 @@ export const CPU_COOLER_DB: CoolerPart[] = [
     model: 'Arctic Liquid Freezer III 360 mm AIO',
     tierLevel: 5,
     coolerType: 'Sıvı Soğutma',
-    supportedSockets: ['AM4', 'AM5', 'LGA1700'],
-    maxTdpCapacityWatts: 330,
+    supportedSockets: ['AM4', 'AM5', 'LGA1700', 'LGA1851'],
+    maxTdpCapacityWatts: 340,
     heightMm: null,
     radiatorMm: 360,
-    specSummary: '360 mm Sıvı Soğutma · Maks. 330W · AM4/AM5/LGA1700',
+    specSummary: '360 mm Sıvı Soğutma · Maks. 340W · AM4/AM5/LGA1700/LGA1851',
   },
   {
     id: 'cooler-no-spec',
@@ -1104,3 +2123,70 @@ export const CPU_COOLER_DB: CoolerPart[] = [
     specSummary: 'Hava Soğutma · Yükseklik (mm) verisi belirtilmemiş',
   },
 ];
+
+interface CoolerBlueprint {
+  brand: string;
+  model: string;
+  type: 'Hava Soğutma' | 'Sıvı Soğutma';
+  capacityWatts: number;
+  heightMm: number | null;
+  radiatorMm: number | null;
+}
+
+const ALL_MODERN_SOCKETS: CpuSocket[] = ['AM4', 'AM5', 'LGA1700', 'LGA1851'];
+
+const EXTENDED_COOLERS: CoolerBlueprint[] = [
+  // Hava Soğutucular
+  { brand: 'DeepCool', model: 'DeepCool AG400 120mm Kule Tipi Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 220, heightMm: 150, radiatorMm: null },
+  { brand: 'DeepCool', model: 'DeepCool AK500 Digital 120mm Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 240, heightMm: 160, radiatorMm: null },
+  { brand: 'DeepCool', model: 'DeepCool AK620 Çift Kule Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 260, heightMm: 160, radiatorMm: null },
+  { brand: 'DeepCool', model: 'DeepCool Assassin IV Amiral Gemisi Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 280, heightMm: 164, radiatorMm: null },
+  { brand: 'Thermalright', model: 'Thermalright Assassin X 120 Refined SE ARGB Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 210, heightMm: 148, radiatorMm: null },
+  { brand: 'Thermalright', model: 'Thermalright Burst Assassin 120 SE Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 225, heightMm: 148, radiatorMm: null },
+  { brand: 'Thermalright', model: 'Thermalright Phantom Spirit 120 SE ARGB Çift Kule Soğutucu', type: 'Hava Soğutma', capacityWatts: 265, heightMm: 154, radiatorMm: null },
+  { brand: 'Thermalright', model: 'Thermalright Frost Spirit 140 V3 Çift Kule Soğutucu', type: 'Hava Soğutma', capacityWatts: 275, heightMm: 158, radiatorMm: null },
+  { brand: 'Arctic', model: 'Arctic Freezer 36 ARGB Siyah Kule Soğutucu', type: 'Hava Soğutma', capacityWatts: 225, heightMm: 159, radiatorMm: null },
+  { brand: 'Cooler Master', model: 'Cooler Master Hyper 212 Halo Black Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 195, heightMm: 154, radiatorMm: null },
+  { brand: 'be quiet!', model: 'be quiet! Pure Rock 2 Black 120mm Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 165, heightMm: 155, radiatorMm: null },
+  { brand: 'be quiet!', model: 'be quiet! Dark Rock Pro 5 Çift Kule Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 270, heightMm: 168, radiatorMm: null },
+  { brand: 'Noctua', model: 'Noctua NH-U12A chromax.black 120mm Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 240, heightMm: 158, radiatorMm: null },
+  { brand: 'Noctua', model: 'Noctua NH-D15 G2 Çift Kule Amiral Gemisi Hava Soğutucu', type: 'Hava Soğutma', capacityWatts: 295, heightMm: 168, radiatorMm: null },
+
+  // Sıvı Soğutucular (240mm / 280mm / 360mm AIO)
+  { brand: 'Thermalright', model: 'Thermalright Aqua Elite 240 ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 265, heightMm: null, radiatorMm: 240 },
+  { brand: 'Thermalright', model: 'Thermalright Aqua Elite 360 ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 320, heightMm: null, radiatorMm: 360 },
+  { brand: 'Thermalright', model: 'Thermalright Frozen Notte 360 ARGB Sıvı Soğutma (Beyaz)', type: 'Sıvı Soğutma', capacityWatts: 330, heightMm: null, radiatorMm: 360 },
+  { brand: 'DeepCool', model: 'DeepCool LE520 240mm ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 265, heightMm: null, radiatorMm: 240 },
+  { brand: 'DeepCool', model: 'DeepCool LS720 SE 360mm ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 325, heightMm: null, radiatorMm: 360 },
+  { brand: 'MSI', model: 'MSI MAG CoreLiquid E240 ARGB 240mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 270, heightMm: null, radiatorMm: 240 },
+  { brand: 'MSI', model: 'MSI MAG CoreLiquid E360 ARGB 360mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 330, heightMm: null, radiatorMm: 360 },
+  { brand: 'MSI', model: 'MSI MAG CoreLiquid I360 ARGB 360mm Sıvı Soğutma (Beyaz)', type: 'Sıvı Soğutma', capacityWatts: 340, heightMm: null, radiatorMm: 360 },
+  { brand: 'Corsair', model: 'Corsair Nautilus 240 RS ARGB 240mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 275, heightMm: null, radiatorMm: 240 },
+  { brand: 'Corsair', model: 'Corsair Nautilus 360 RS ARGB 360mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 335, heightMm: null, radiatorMm: 360 },
+  { brand: 'Corsair', model: 'Corsair iCUE LINK H150i RGB 360mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 350, heightMm: null, radiatorMm: 360 },
+  { brand: 'NZXT', model: 'NZXT Kraken 240 LCD Ekranlı 240mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 275, heightMm: null, radiatorMm: 240 },
+  { brand: 'NZXT', model: 'NZXT Kraken 360 LCD Ekranlı 360mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 335, heightMm: null, radiatorMm: 360 },
+  { brand: 'Lian Li', model: 'Lian Li Galahad II Trinity 360 ARGB 360mm Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 345, heightMm: null, radiatorMm: 360 },
+  { brand: 'ASUS', model: 'ASUS TUF Gaming LC II 240 ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 270, heightMm: null, radiatorMm: 240 },
+  { brand: 'ASUS', model: 'ASUS ROG Strix LC III 360 ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 345, heightMm: null, radiatorMm: 360 },
+  { brand: 'Arctic', model: 'Arctic Liquid Freezer III 280 mm ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 310, heightMm: null, radiatorMm: 280 },
+  { brand: 'Cooler Master', model: 'Cooler Master MasterLiquid 360L Core ARGB Sıvı Soğutma', type: 'Sıvı Soğutma', capacityWatts: 315, heightMm: null, radiatorMm: 360 },
+];
+
+for (const cl of EXTENDED_COOLERS) {
+  const tierLevel = (
+    cl.radiatorMm === 360 || cl.capacityWatts >= 290 ? 5 : cl.radiatorMm || cl.capacityWatts >= 250 ? 4 : cl.capacityWatts >= 200 ? 3 : 2
+  ) as 1 | 2 | 3 | 4 | 5;
+  CPU_COOLER_DB.push({
+    id: `cooler-tr-${catalogSlug(cl.model)}`,
+    brand: cl.brand,
+    model: cl.model,
+    tierLevel,
+    coolerType: cl.type,
+    supportedSockets: [...ALL_MODERN_SOCKETS],
+    maxTdpCapacityWatts: cl.capacityWatts,
+    heightMm: cl.heightMm,
+    radiatorMm: cl.radiatorMm,
+    specSummary: `${cl.type} · ${cl.radiatorMm ? `${cl.radiatorMm} mm Radyatör` : `${cl.heightMm} mm Yükseklik`} · Maks. ${cl.capacityWatts}W · AM4/AM5/LGA1700/LGA1851`,
+  });
+}

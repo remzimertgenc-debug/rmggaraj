@@ -24,7 +24,6 @@ interface HomePageProps {
   onNavigate: (page: PageId) => void;
   onInspectBuild: (build: PcBuild) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
 const POPULAR_SHOWCASE_PREFS: BuilderPreferences = {
@@ -32,7 +31,6 @@ const POPULAR_SHOWCASE_PREFS: BuilderPreferences = {
   purpose: 'oyun',
   favoriteGames: ['Valorant', 'Cyberpunk 2077', 'Red Dead Redemption 2'],
   resolution: '1440p',
-  condition: 'sifir',
   cpuBrandPref: 'farketmez',
   gpuBrandPref: 'farketmez',
 };
@@ -45,7 +43,6 @@ export function HomePage({
   onNavigate,
   onInspectBuild,
   onInspectPart,
-  onManageListings,
 }: HomePageProps) {
   const [dynamicCatFilter, setDynamicCatFilter] = useState<'all' | PartCategoryKey>('all');
 
@@ -219,7 +216,6 @@ export function HomePage({
                   product={product}
                   pricing={pricingCatalog?.partsPricing[product.id]}
                   onInspect={onInspectPart}
-                  onManageListings={onManageListings}
                 />
               ))}
             </div>

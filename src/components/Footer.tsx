@@ -5,7 +5,6 @@ import { RmgLogo } from './RmgLogo';
 interface FooterProps {
   onNavigate: (page: PageId) => void;
   onSelectCategory?: (category: PartCategoryKey) => void;
-  onOpenListings?: () => void;
 }
 
 const LEGAL_LINKS: { id: PageId; label: string }[] = [
@@ -27,7 +26,6 @@ const CATEGORY_LINKS: { id: PartCategoryKey; label: string }[] = [
 export function Footer({
   onNavigate,
   onSelectCategory,
-  onOpenListings,
 }: FooterProps) {
   return (
     <footer className="border-t border-slate-800 bg-slate-950/70">
@@ -121,17 +119,6 @@ export function Footer({
                   Bilgisayar Topla
                 </button>
               </li>
-              {onOpenListings && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={onOpenListings}
-                    className="cursor-pointer transition-colors hover:text-[#FF7900]"
-                  >
-                    İlan Fiyat Kaynakları
-                  </button>
-                </li>
-              )}
             </ul>
           </div>
 

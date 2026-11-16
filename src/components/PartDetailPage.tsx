@@ -6,7 +6,6 @@ import {
   ExternalLink,
   SlidersHorizontal,
   Store,
-  Tag,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { formatTry } from '../data/builds';
@@ -35,7 +34,6 @@ interface PartDetailPageProps {
   backLabel: string;
   onBack: () => void;
   onBuildWithPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
   onInspectBuild: (build: PcBuild) => void;
 }
 
@@ -229,21 +227,19 @@ export function PartDetailPage({
   backLabel,
   onBack,
   onBuildWithPart,
-  onManageListings,
   onInspectBuild,
 }: PartDetailPageProps) {
   const entry = findMergedPartById(category, partId, pricingCatalog);
   const dynamicProduct = !entry
     ? pricingCatalog?.dynamicProducts?.find((p) => p.id === partId) ?? null
     : null;
-  const [conditionTab, setConditionTab] = useState<'sifir' | 'ikinci-el'>('sifir');
   const [copied, setCopied] = useState(false);
   const [priceHistory, setPriceHistory] = useState<PriceHistoryPoint[]>([]);
 
   const partListings = useMemo(() => {
     if (!pricingCatalog?.listings) return [];
     return pricingCatalog.listings
-      .filter((listing) => listing.partId === partId)
+      .filter((listing) => listing.partId === partId && listing.isNew)
       .sort((a, b) => a.listingPriceTry - b.listingPriceTry);
   }, [pricingCatalog, partId]);
 
@@ -251,7 +247,7 @@ export function PartDetailPage({
 
   useEffect(() => {
     let active = true;
-    fetchPartPriceHistory(partId, conditionTab === 'sifir')
+    fetchPartPriceHistory(partId)
       .then((points) => {
         if (active) setPriceHistory(points);
       })
@@ -261,7 +257,7 @@ export function PartDetailPage({
     return () => {
       active = false;
     };
-  }, [partId, conditionTab, pricingCatalog]);
+  }, [partId, pricingCatalog]);
 
   if (!entry && !dynamicProduct) {
     return (
@@ -304,14 +300,8 @@ export function PartDetailPage({
   const isBuiltinZeroCost =
     resolvedId === 'gpu-apu-vega7' || resolvedId === 'cooler-stock-wraith';
 
-  const activePrice =
-    conditionTab === 'ikinci-el'
-      ? pricing?.usedPriceTry ?? null
-      : pricing?.newPriceTry ?? null;
-  const activeSourceLabel =
-    conditionTab === 'ikinci-el'
-      ? pricing?.usedSourceLabel ?? 'İkinci el ilanı bulunamadı'
-      : pricing?.newSourceLabel ?? 'Referans fiyat henüz tanımlanmadı';
+  const activePrice = pricing?.newPriceTry ?? null;
+  const activeSourceLabel = pricing?.newSourceLabel ?? 'Referans fiyat henüz tanımlanmadı';
 
   const specRows: SpecRow[] = entry
     ? buildSpecRows(entry)
@@ -354,7 +344,7 @@ export function PartDetailPage({
     const text = [
       `RMG Garaj — ${resolvedModel}`,
       `Kategori: ${categoryLabel}`,
-      `Fiyat (${conditionTab === 'sifir' ? 'Sıfır' : 'İkinci El'}): ${priceText}`,
+      `Fiyat: ${priceText}`,
       '',
       ...specRows.map((row) => `${row.label}: ${row.value}`),
     ].join('\n');
@@ -417,89 +407,28 @@ export function PartDetailPage({
               {resolvedSpecSummary}
             </p>
 
-            {/* Condition Switch & Tabular Price Box */}
+            {/* Tabular Price Box */}
             <div className="mt-6 border-y border-slate-800 py-5">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-flex rounded-lg border border-slate-800 bg-[#111827] p-1">
-                  <button
-                    type="button"
-                    onClick={() => setConditionTab('sifir')}
-                    className={`cursor-pointer rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                      conditionTab === 'sifir'
-                        ? 'bg-[#FF7900] text-[#080B12]'
-                        : 'text-[#94A3B8] hover:text-[#F5F7FA]'
-                    }`}
-                  >
-                    Sıfır Fiyatı
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConditionTab('ikinci-el')}
-                    className={`cursor-pointer rounded-md px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                      conditionTab === 'ikinci-el'
-                        ? 'bg-[#FF7900] text-[#080B12]'
-                        : 'text-[#94A3B8] hover:text-[#F5F7FA]'
-                    }`}
-                  >
-                    İkinci El
-                  </button>
-                </div>
-
-                {conditionTab === 'ikinci-el' &&
-                  pricing?.newPriceTry &&
-                  pricing.comparison.savingsPercent !== null && (
-                    <span className="font-mono text-xs font-semibold text-[#FF7900] tabular-nums">
-                      Sıfıra göre %{pricing.comparison.savingsPercent} tasarruf (
-                      {formatTry(pricing.comparison.differenceTry ?? 0)})
-                    </span>
-                  )}
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-baseline justify-between gap-4">
-                <div>
-                  {conditionTab === 'ikinci-el' && pricing?.newPriceTry && (
-                    <span className="mb-1 block font-mono text-sm text-[#94A3B8] line-through tabular-nums">
-                      Sıfır: {formatTry(pricing.newPriceTry)}
-                    </span>
-                  )}
-                  <span className="font-mono text-4xl sm:text-5xl font-extrabold tabular-nums tracking-tight text-[#FF7900]">
-                    {activePrice && activePrice > 0
-                      ? formatTry(activePrice)
-                      : isBuiltinZeroCost
-                        ? 'Dahili (0 TL)'
-                        : 'Fiyat Bekleniyor'}
-                  </span>
-                </div>
+              <div className="flex flex-wrap items-baseline justify-between gap-4">
+                <span className="font-mono text-4xl sm:text-5xl font-extrabold tabular-nums tracking-tight text-[#FF7900]">
+                  {activePrice && activePrice > 0
+                    ? formatTry(activePrice)
+                    : isBuiltinZeroCost
+                      ? 'Dahili (0 TL)'
+                      : 'Fiyat Bekleniyor'}
+                </span>
                 <span className="text-xs text-[#94A3B8]">{activeSourceLabel}</span>
               </div>
-
-              {pricing?.newPriceTry && pricing?.usedPriceTry && (
-                <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-[#94A3B8]">
-                  <span>
-                    Sıfır Referans:{' '}
-                    <strong className="font-mono text-[#F5F7FA] tabular-nums">
-                      {formatTry(pricing.newPriceTry)}
-                    </strong>
-                  </span>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    İkinci El Medyan:{' '}
-                    <strong className="font-mono text-[#FF7900] tabular-nums">
-                      {formatTry(pricing.usedPriceTry)}
-                    </strong>
-                  </span>
-                </div>
-              )}
             </div>
 
             {/* Primary Actions */}
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-6">
               {entry ? (
                 <button
                   type="button"
                   disabled={cpuUnsupportedSocket}
                   onClick={() => onBuildWithPart(resolvedCategory, resolvedId)}
-                  className={`flex min-h-[48px] items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-colors ${
+                  className={`flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg px-5 py-3 text-sm font-semibold transition-colors ${
                     cpuUnsupportedSocket
                       ? 'cursor-not-allowed border border-slate-800 bg-[#111827] text-[#94A3B8]'
                       : 'cursor-pointer bg-[#246BFD] text-[#F5F7FA] hover:bg-[#3B7CFE]'
@@ -527,22 +456,12 @@ export function PartDetailPage({
                   onClick={(e) => {
                     if (!cheapestListing?.listingUrl) e.preventDefault();
                   }}
-                  className="flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-[#246BFD] px-5 py-3 text-sm font-semibold text-[#F5F7FA] transition-colors hover:bg-[#3B7CFE]"
+                  className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-lg bg-[#246BFD] px-5 py-3 text-sm font-semibold text-[#F5F7FA] transition-colors hover:bg-[#3B7CFE]"
                 >
                   <ExternalLink className="h-4 w-4 shrink-0" />
                   <span>En Ucuz Mağazaya Git</span>
                 </a>
               )}
-
-              <button
-                type="button"
-                onClick={() => onManageListings(resolvedId)}
-                className="flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-[#111827] px-5 py-3 text-sm font-semibold text-[#F5F7FA] transition-colors hover:border-[#FF7900] hover:text-[#FF7900]"
-              >
-                <Tag className="h-4 w-4 shrink-0 text-[#FF7900]" />
-                <span>İlan Ekle / Fiyat Kaynakları</span>
-                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              </button>
             </div>
 
             <div className="mt-4 flex items-center gap-4">
@@ -586,17 +505,9 @@ export function PartDetailPage({
               Fiyat Karşılaştırma
             </p>
             <h2 className="mt-1 font-display text-2xl font-bold text-[#F5F7FA]">
-              Mağaza ve İlan Fiyatları
+              Mağaza Fiyatları
             </h2>
           </div>
-          <button
-            type="button"
-            onClick={() => onManageListings(resolvedId)}
-            className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[#246BFD] hover:underline whitespace-nowrap shrink-0"
-          >
-            <Tag className="h-3.5 w-3.5 shrink-0" />
-            <span>Yeni İlan Ekle</span>
-          </button>
         </div>
 
         {/* Highlighted "En Ucuz" Card */}
@@ -607,12 +518,8 @@ export function PartDetailPage({
                 <div className="flex flex-wrap items-center gap-2 text-xs font-semibold">
                   <span className="text-[#FF7900]">En Ucuz</span>
                   <span className="text-slate-400" aria-hidden="true">·</span>
-                  <span className="text-[#246BFD]">
-                    {cheapestListing.isNew ? 'Sıfır' : 'İkinci El'}
-                  </span>
-                  <span className="text-slate-400" aria-hidden="true">·</span>
                   <span className="text-slate-400">
-                    {partListings.length} fiyat karşılaştırıldı
+                    {partListings.length} mağaza karşılaştırıldı
                   </span>
                 </div>
 
@@ -657,43 +564,33 @@ export function PartDetailPage({
           </div>
         ) : (
           <div className="rounded-xl border border-slate-800 bg-[#111827] p-6">
-            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-              <div>
-                <p className="text-xs font-semibold tracking-wider text-[#246BFD]">
-                  En Ucuz
-                </p>
-                <h3 className="mt-1 font-display text-xl font-bold text-[#F5F7FA]">
-                  Bu ürün için henüz mağaza ilanı eklenmedi
-                </h3>
-                <p className="mt-1 text-sm text-[#94A3B8]">
-                  {activePrice && activePrice > 0
-                    ? `Referans piyasa tahmini: ${formatTry(activePrice)}. Gerçek mağaza veya ikinci el ilanı ekleyerek karşılaştırma başlatabilirsiniz.`
-                    : 'Gerçek mağaza veya ikinci el ilanı ekleyerek fiyat karşılaştırması başlatabilirsiniz.'}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => onManageListings(resolvedId)}
-                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#246BFD] px-5 py-2.5 text-sm font-semibold text-[#F5F7FA] transition-colors hover:bg-[#3B7CFE] whitespace-nowrap shrink-0"
-              >
-                <Tag className="h-4 w-4 shrink-0" />
-                <span>İlan Ekle</span>
-              </button>
+            <div>
+              <p className="text-xs font-semibold tracking-wider text-[#246BFD]">
+                Mağaza Durumu
+              </p>
+              <h3 className="mt-1 font-display text-xl font-bold text-[#F5F7FA]">
+                Bu ürün için henüz canlı mağaza kaydı bulunmuyor
+              </h3>
+              <p className="mt-1 text-sm text-[#94A3B8]">
+                {activePrice && activePrice > 0
+                  ? `Referans piyasa tahmini: ${formatTry(activePrice)}. Yetkili mağaza akışları senkronize edildiğinde güncel satıcı fiyatları burada listelenir.`
+                  : 'Yetkili mağaza akışlarından henüz anlık fiyat kaydı alınmadı.'}
+              </p>
             </div>
           </div>
         )}
 
-        {/* Sorted Store & Listing Comparison Table */}
+        {/* Sorted Store Comparison Table */}
         {partListings.length > 0 && (
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-800 bg-[#111827]">
             <div className="flex items-center justify-between border-b border-slate-800 bg-[#0D1320] px-5 py-3 text-xs font-semibold text-[#94A3B8]">
-              <span>Tüm Mağazalar ve İlanlar ({partListings.length})</span>
+              <span>Tüm Mağaza Fiyatları ({partListings.length})</span>
               <span>En ucuzdan en pahalıya sıralı</span>
             </div>
 
             <div className="hidden grid-cols-12 gap-4 border-b border-slate-800/80 px-5 py-2.5 text-xs font-medium text-[#94A3B8] md:grid">
-              <div className="col-span-5">Mağaza Adı</div>
-              <div className="col-span-3">Kondisyon</div>
+              <div className="col-span-6">Mağaza Adı</div>
+              <div className="col-span-2">Güncelleme</div>
               <div className="col-span-2 text-right">Fiyat</div>
               <div className="col-span-2 text-right">İşlem</div>
             </div>
@@ -709,7 +606,7 @@ export function PartDetailPage({
                     }`}
                   >
                     {/* Store Name & Product Title */}
-                    <div className="min-w-0 md:col-span-5">
+                    <div className="min-w-0 md:col-span-6">
                       <div className="flex items-center gap-2">
                         <span className="font-display text-base font-bold text-[#F5F7FA]">
                           {listing.platform}
@@ -725,17 +622,10 @@ export function PartDetailPage({
                       </p>
                     </div>
 
-                    {/* Condition */}
-                    <div className="md:col-span-3">
-                      <span
-                        className={`text-sm font-semibold ${
-                          listing.isNew ? 'text-[#246BFD]' : 'text-[#FF7900]'
-                        }`}
-                      >
-                        {listing.isNew ? 'Sıfır' : 'İkinci El'}
-                      </span>
-                      <span className="block text-xs text-[#94A3B8]">
-                        {listing.conditionGrade}
+                    {/* Updated Date */}
+                    <div className="md:col-span-2">
+                      <span className="text-xs text-[#94A3B8]">
+                        {listing.listingDate || 'Güncel'}
                       </span>
                     </div>
 
@@ -787,7 +677,6 @@ export function PartDetailPage({
           <PriceHistoryChart
             data={priceHistory}
             productName={resolvedModel}
-            conditionLabel={conditionTab === 'ikinci-el' ? 'İkinci El' : 'Sıfır'}
           />
         </div>
       </section>

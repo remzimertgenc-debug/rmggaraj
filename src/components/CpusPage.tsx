@@ -1,42 +1,86 @@
-import { ArrowRight, Cpu, SlidersHorizontal } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { formatTry } from '../data/builds';
 import { getMergedCatalogParts } from '../data/catalogAdapter';
-import { PartCategoryKey, PricingCatalogResponse } from '../types/pc';
-import { CatalogFilterSidebar, FilterGroup, FilterOption } from './CatalogFilterSidebar';
-import { ProductImage } from './ProductImage';
+import type { CpuPart, PartCategoryKey, PricingCatalogResponse } from '../types/pc';
+import {
+  CatalogFilterSidebar,
+  type FilterGroup,
+  type FilterOption,
+  type PricePreset,
+} from './CatalogFilterSidebar';
+import {
+  CatalogProductSection,
+  type ActiveFilterChip,
+  type CatalogDisplayProduct,
+  type CatalogSortOrder,
+} from './CatalogProductSection';
 
 interface CpusPageProps {
   pricingCatalog: PricingCatalogResponse | null;
   onBuildWithCpu: (cpuId: string) => void;
   onInspectPart: (category: PartCategoryKey, partId: string) => void;
-  onManageListings: (partId?: string) => void;
 }
 
-type SortOrder = 'name' | 'price-asc' | 'price-desc';
+const CPU_PRICE_PRESETS: PricePreset[] = [
+  { id: 'cpu-under-5k', label: '5.000 ₺ Altı', min: '', max: '5000' },
+  { id: 'cpu-5k-10k', label: '5.000 - 10.000 ₺', min: '5000', max: '10000' },
+  { id: 'cpu-10k-18k', label: '10.000 - 18.000 ₺', min: '10000', max: '18000' },
+  { id: 'cpu-over-18k', label: '18.000 ₺ Üzeri', min: '18000', max: '' },
+];
+
+const CORE_BAND_ORDER = [
+  '4-6 Çekirdek',
+  '8 Çekirdek',
+  '10-16 Çekirdek',
+  '20+ Çekirdek',
+];
+
+function getCpuCoreBand(cores: number): string {
+  if (cores <= 6) return '4-6 Çekirdek';
+  if (cores === 8) return '8 Çekirdek';
+  if (cores <= 16) return '10-16 Çekirdek';
+  return '20+ Çekirdek';
+}
 
 export function CpusPage({
   pricingCatalog,
+  onBuildWithCpu,
   onInspectPart,
 }: CpusPageProps) {
   const [selectedBrands, setSelectedBrands] = useState<string[]>([]);
   const [selectedSockets, setSelectedSockets] = useState<string[]>([]);
   const [selectedGenerations, setSelectedGenerations] = useState<string[]>([]);
+  const [selectedCoreBands, setSelectedCoreBands] = useState<string[]>([]);
+  const [selectedRamTypes, setSelectedRamTypes] = useState<string[]>([]);
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
   const [minPrice, setMinPrice] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
-  const [conditionMode, setConditionMode] = useState<'sifir' | 'ikinci-el'>('sifir');
   const [search, setSearch] = useState('');
-  const [sortOrder, setSortOrder] = useState<SortOrder>('name');
+  const [sortOrder, setSortOrder] = useState<CatalogSortOrder>('name');
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(24);
 
-  const allCpus = useMemo(
+  const allCpus = useMemo<CpuPart[]>(
     () =>
       getMergedCatalogParts(pricingCatalog).cpus.filter(
         (c) => !c.isUnverifiedSpecSample
       ),
     [pricingCatalog]
   );
+
+  const storesByPartId = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const listing of pricingCatalog?.listings ?? []) {
+      if (listing.isSuspiciousOutlier) continue;
+      let set = map.get(listing.partId);
+      if (!set) {
+        set = new Set<string>();
+        map.set(listing.partId, set);
+      }
+      set.add(listing.platform);
+    }
+    return map;
+  }, [pricingCatalog?.listings]);
 
   const brandOptions = useMemo<FilterOption[]>(() => {
     const counts = new Map<string, number>();
@@ -64,7 +108,47 @@ export function CpusPage({
       .map(([value, count]) => ({ value, label: value, count }));
   }, [allCpus]);
 
-  const toggleItem = (setter: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+  const coreBandOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const c of allCpus) {
+      const band = getCpuCoreBand(c.cores);
+      counts.set(band, (counts.get(band) ?? 0) + 1);
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => CORE_BAND_ORDER.indexOf(a) - CORE_BAND_ORDER.indexOf(b))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allCpus]);
+
+  const ramTypeOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const c of allCpus) {
+      for (const ram of c.supportedRam) {
+        counts.set(ram, (counts.get(ram) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allCpus]);
+
+  const storeOptions = useMemo<FilterOption[]>(() => {
+    const counts = new Map<string, number>();
+    for (const c of allCpus) {
+      const stores = storesByPartId.get(c.id);
+      if (!stores) continue;
+      for (const store of stores) {
+        counts.set(store, (counts.get(store) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .sort(([a], [b]) => a.localeCompare(b, 'tr'))
+      .map(([value, count]) => ({ value, label: value, count }));
+  }, [allCpus, storesByPartId]);
+
+  const toggleItem = (
+    setter: React.Dispatch<React.SetStateAction<string[]>>,
+    value: string
+  ) => {
     setter((prev) =>
       prev.includes(value) ? prev.filter((item) => item !== value) : [...prev, value]
     );
@@ -82,13 +166,23 @@ export function CpusPage({
   const parsedMin = minPrice.trim() !== '' ? Number(minPrice) : null;
   const parsedMax = maxPrice.trim() !== '' ? Number(maxPrice) : null;
 
+  useEffect(() => {
+    setVisibleLimit(24);
+  }, [
+    selectedBrands,
+    selectedSockets,
+    selectedGenerations,
+    selectedCoreBands,
+    selectedRamTypes,
+    selectedStores,
+    minPrice,
+    maxPrice,
+    search,
+    sortOrder,
+  ]);
+
   const cpus = useMemo(() => {
-    const getPrice = (cpuId: string) => {
-      const pricing = pricingCatalog?.partsPricing[cpuId];
-      return conditionMode === 'ikinci-el'
-        ? pricing?.usedPriceTry ?? 0
-        : pricing?.newPriceTry ?? 0;
-    };
+    const getPrice = (cpuId: string) => pricingCatalog?.partsPricing[cpuId]?.newPriceTry ?? 0;
 
     const filtered = allCpus.filter((c) => {
       if (selectedBrands.length > 0 && !selectedBrands.includes(c.brand)) return false;
@@ -99,7 +193,28 @@ export function CpusPage({
       ) {
         return false;
       }
-      if (normalizedSearch && !normalizeText(c.model).includes(normalizedSearch)) {
+      if (
+        selectedCoreBands.length > 0 &&
+        !selectedCoreBands.includes(getCpuCoreBand(c.cores))
+      ) {
+        return false;
+      }
+      if (
+        selectedRamTypes.length > 0 &&
+        !selectedRamTypes.some((ram) => c.supportedRam.includes(ram as 'DDR4' | 'DDR5'))
+      ) {
+        return false;
+      }
+      if (selectedStores.length > 0) {
+        const partStores = storesByPartId.get(c.id);
+        if (!partStores || !selectedStores.some((s) => partStores.has(s))) return false;
+      }
+      if (
+        normalizedSearch &&
+        !normalizeText(
+          `${c.brand} ${c.model} ${c.socket} ${c.generation ?? ''} ${c.specSummary}`
+        ).includes(normalizedSearch)
+      ) {
         return false;
       }
 
@@ -120,21 +235,27 @@ export function CpusPage({
     });
   }, [
     allCpus,
-    conditionMode,
     normalizedSearch,
     parsedMax,
     parsedMin,
     pricingCatalog,
     selectedBrands,
+    selectedCoreBands,
     selectedGenerations,
+    selectedRamTypes,
     selectedSockets,
+    selectedStores,
     sortOrder,
+    storesByPartId,
   ]);
 
   const activeFilterCount =
     selectedBrands.length +
     selectedSockets.length +
     selectedGenerations.length +
+    selectedCoreBands.length +
+    selectedRamTypes.length +
+    selectedStores.length +
     (minPrice.trim() !== '' ? 1 : 0) +
     (maxPrice.trim() !== '' ? 1 : 0);
 
@@ -142,6 +263,9 @@ export function CpusPage({
     setSelectedBrands([]);
     setSelectedSockets([]);
     setSelectedGenerations([]);
+    setSelectedCoreBands([]);
+    setSelectedRamTypes([]);
+    setSelectedStores([]);
     setMinPrice('');
     setMaxPrice('');
     setSearch('');
@@ -154,6 +278,7 @@ export function CpusPage({
       options: socketOptions,
       selectedValues: selectedSockets,
       onToggle: (val) => toggleItem(setSelectedSockets, val),
+      defaultOpen: true,
     },
     {
       id: 'generation',
@@ -161,8 +286,117 @@ export function CpusPage({
       options: generationOptions,
       selectedValues: selectedGenerations,
       onToggle: (val) => toggleItem(setSelectedGenerations, val),
+      defaultOpen: true,
+    },
+    {
+      id: 'coreBand',
+      title: 'Çekirdek Sayısı',
+      options: coreBandOptions,
+      selectedValues: selectedCoreBands,
+      onToggle: (val) => toggleItem(setSelectedCoreBands, val),
+      defaultOpen: true,
+    },
+    {
+      id: 'ramType',
+      title: 'Bellek Desteği',
+      options: ramTypeOptions,
+      selectedValues: selectedRamTypes,
+      onToggle: (val) => toggleItem(setSelectedRamTypes, val),
+      defaultOpen: false,
+    },
+    {
+      id: 'store',
+      title: 'Satıcı Mağaza',
+      options: storeOptions,
+      selectedValues: selectedStores,
+      onToggle: (val) => toggleItem(setSelectedStores, val),
+      defaultOpen: false,
+      searchable: false,
     },
   ];
+
+  const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
+    const chips: ActiveFilterChip[] = [];
+
+    if (minPrice.trim() !== '' || maxPrice.trim() !== '') {
+      const minLabel = minPrice.trim() ? formatTry(Number(minPrice)) : '0 ₺';
+      const maxLabel = maxPrice.trim() ? formatTry(Number(maxPrice)) : 'Sınırsız';
+      chips.push({
+        key: 'price-range',
+        label: `Fiyat: ${minLabel} - ${maxLabel}`,
+        onRemove: () => {
+          setMinPrice('');
+          setMaxPrice('');
+        },
+      });
+    }
+
+    for (const brand of selectedBrands) {
+      chips.push({
+        key: `brand-${brand}`,
+        label: `Marka: ${brand}`,
+        onRemove: () => toggleItem(setSelectedBrands, brand),
+      });
+    }
+    for (const socket of selectedSockets) {
+      chips.push({
+        key: `socket-${socket}`,
+        label: `Soket: ${socket}`,
+        onRemove: () => toggleItem(setSelectedSockets, socket),
+      });
+    }
+    for (const gen of selectedGenerations) {
+      chips.push({
+        key: `gen-${gen}`,
+        label: gen,
+        onRemove: () => toggleItem(setSelectedGenerations, gen),
+      });
+    }
+    for (const band of selectedCoreBands) {
+      chips.push({
+        key: `core-${band}`,
+        label: band,
+        onRemove: () => toggleItem(setSelectedCoreBands, band),
+      });
+    }
+    for (const ram of selectedRamTypes) {
+      chips.push({
+        key: `ram-${ram}`,
+        label: `RAM: ${ram}`,
+        onRemove: () => toggleItem(setSelectedRamTypes, ram),
+      });
+    }
+    for (const store of selectedStores) {
+      chips.push({
+        key: `store-${store}`,
+        label: `Mağaza: ${store}`,
+        onRemove: () => toggleItem(setSelectedStores, store),
+      });
+    }
+
+    return chips;
+  }, [
+    maxPrice,
+    minPrice,
+    selectedBrands,
+    selectedCoreBands,
+    selectedGenerations,
+    selectedRamTypes,
+    selectedSockets,
+    selectedStores,
+  ]);
+
+  const displayItems = useMemo<CatalogDisplayProduct[]>(
+    () =>
+      cpus.map((c) => ({
+        id: c.id,
+        category: 'cpu',
+        brand: c.brand,
+        model: c.model,
+        specSummary: c.specSummary,
+      })),
+    [cpus]
+  );
 
   return (
     <div className="mx-auto max-w-[1320px] px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
@@ -175,38 +409,14 @@ export function CpusPage({
             İşlemciler
           </h1>
           <p className="mt-2 max-w-xl text-sm font-normal text-slate-400">
-            AMD Ryzen ve Intel Core işlemcilerin güncel fiyatlarını karşılaştırın.
+            AMD Ryzen, Intel Core ve Core Ultra işlemcilerin güncel mağaza fiyatlarını
+            karşılaştırın.
           </p>
-        </div>
-
-        <div className="inline-flex rounded-xl border border-slate-700/70 bg-slate-800 p-1 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => setConditionMode('sifir')}
-            className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
-              conditionMode === 'sifir'
-                ? 'bg-[#FF7900] text-slate-950 font-bold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            Sıfır
-          </button>
-          <button
-            type="button"
-            onClick={() => setConditionMode('ikinci-el')}
-            className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-semibold transition-colors ${
-              conditionMode === 'ikinci-el'
-                ? 'bg-[#FF7900] text-slate-950 font-bold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            İkinci El
-          </button>
         </div>
       </div>
 
-      {/* Sidebar + Product Grid Layout */}
-      <div className="mt-10 flex flex-col gap-8 lg:flex-row lg:items-start lg:gap-10">
+      {/* İtopya-Style Left Accordion Sidebar + Right Product Grid/List */}
+      <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
         <CatalogFilterSidebar
           brands={brandOptions}
           selectedBrands={selectedBrands}
@@ -215,6 +425,7 @@ export function CpusPage({
           maxPrice={maxPrice}
           onChangeMinPrice={setMinPrice}
           onChangeMaxPrice={setMaxPrice}
+          pricePresets={CPU_PRICE_PRESETS}
           featureGroups={featureGroups}
           activeFilterCount={activeFilterCount}
           resultCount={cpus.length}
@@ -223,144 +434,26 @@ export function CpusPage({
           onCloseMobile={() => setMobileFilterOpen(false)}
         />
 
-        <div className="min-w-0 flex-1">
-          {/* Top Search, Mobile Filter Trigger & Sort Toolbar */}
-          <div className="flex flex-col gap-3 rounded-2xl border border-slate-700/60 bg-slate-800/75 p-4 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={() => setMobileFilterOpen(true)}
-              className="inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-600 bg-slate-900 px-4 text-xs font-bold text-slate-100 lg:hidden"
-            >
-              <SlidersHorizontal className="h-4 w-4 text-[#FF7900]" />
-              <span>Filtreler</span>
-              {activeFilterCount > 0 && (
-                <span className="rounded bg-[#FF7900] px-1.5 py-0.5 font-mono text-[11px] text-slate-950">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="İşlemci model ara: Ryzen 7 7800X3D, Core i7..."
-              aria-label="İşlemci model ara"
-              className="min-h-11 flex-1 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm text-slate-50 placeholder:text-slate-400 outline-none focus:border-[#FF7900]"
-            />
-
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as SortOrder)}
-              aria-label="Sıralama"
-              className="min-h-11 rounded-xl border border-slate-700 bg-slate-900 px-3.5 text-xs font-semibold text-slate-100"
-            >
-              <option value="name">Sıralama: İsim (A-Z)</option>
-              <option value="price-asc">Fiyat: En Düşük</option>
-              <option value="price-desc">Fiyat: En Yüksek</option>
-            </select>
-
-            <span className="text-xs font-semibold text-slate-400 whitespace-nowrap sm:px-2">
-              {cpus.length} ürün
-            </span>
-          </div>
-
-          <div className="mt-8 grid grid-cols-1 gap-7 md:grid-cols-2 xl:grid-cols-3">
-            {cpus.slice(0, visibleLimit).map((cpu) => {
-              const pricing = pricingCatalog?.partsPricing[cpu.id];
-              const activePrice =
-                conditionMode === 'ikinci-el'
-                  ? pricing?.usedPriceTry ?? 0
-                  : pricing?.newPriceTry ?? 0;
-
-              return (
-                <article
-                  key={cpu.id}
-                  className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-all duration-200 hover:scale-[1.015] hover:border-[#FF7900]/70 hover:shadow-[0_18px_40px_-16px_rgba(0,0,0,0.65)]"
-                >
-                  <button
-                    type="button"
-                    onClick={() => onInspectPart('cpu', cpu.id)}
-                    className="aspect-[4/3] w-full cursor-pointer overflow-hidden bg-slate-900/80 text-left"
-                  >
-                    <ProductImage
-                      imageUrl={pricingCatalog?.productImages?.[cpu.id]}
-                      category="cpu"
-                      model={cpu.model}
-                      brand={cpu.brand}
-                      className="h-full w-full object-cover object-center transition-transform duration-300 group-hover:scale-[1.03]"
-                    />
-                  </button>
-
-                  <div className="flex flex-1 flex-col justify-between gap-6 p-6 sm:p-7">
-                    <h2 className="font-display text-lg font-bold leading-snug text-slate-50">
-                      <button
-                        type="button"
-                        onClick={() => onInspectPart('cpu', cpu.id)}
-                        className="line-clamp-2 cursor-pointer text-left transition-colors hover:text-[#FF7900]"
-                      >
-                        {cpu.model}
-                      </button>
-                    </h2>
-
-                    <div className="space-y-4">
-                      <div>
-                        {conditionMode === 'ikinci-el' &&
-                          pricing?.newPriceTry &&
-                          pricing.comparison.savingsPercent !== null && (
-                            <span className="mb-0.5 block font-mono text-xs text-slate-400 line-through tabular-nums">
-                              {formatTry(pricing.newPriceTry)}
-                            </span>
-                          )}
-                        <span className="block font-mono text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums text-[#FF7900]">
-                          {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
-                        </span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => onInspectPart('cpu', cpu.id)}
-                        className="flex min-h-[46px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8C24]"
-                      >
-                        <span>Ürünü İncele</span>
-                        <ArrowRight className="h-4 w-4 shrink-0" />
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-
-          {cpus.length > visibleLimit && (
-            <div className="mt-10 flex justify-center">
-              <button
-                type="button"
-                onClick={() => setVisibleLimit((prev) => prev + 24)}
-                className="cursor-pointer rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-bold text-slate-100 transition-colors hover:border-[#FF7900] hover:text-[#FF7900]"
-              >
-                Daha Fazla İşlemci Göster ({cpus.length - visibleLimit} ürün daha)
-              </button>
-            </div>
-          )}
-
-          {cpus.length === 0 && (
-            <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-slate-700/60 bg-slate-800/75 py-16 text-center">
-              <Cpu className="h-10 w-10 text-slate-400" />
-              <p className="mt-3 text-sm text-slate-400">
-                Seçtiğiniz filtrelere uygun işlemci bulunamadı.
-              </p>
-              {activeFilterCount > 0 && (
-                <button
-                  type="button"
-                  onClick={handleResetFilters}
-                  className="mt-4 cursor-pointer rounded-xl bg-[#FF7900] px-5 py-2.5 text-xs font-bold text-slate-950 hover:bg-[#FF8C24]"
-                >
-                  Filtreleri Temizle
-                </button>
-              )}
-            </div>
-          )}
-        </div>
+        <CatalogProductSection
+          items={displayItems}
+          totalCount={allCpus.length}
+          pricingCatalog={pricingCatalog}
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="İşlemci model ara: Ryzen 7 9800X3D, Core Ultra 7..."
+          sortOrder={sortOrder}
+          onSortChange={setSortOrder}
+          activeFilterCount={activeFilterCount}
+          activeFilterChips={activeFilterChips}
+          onResetFilters={handleResetFilters}
+          onOpenMobileFilters={() => setMobileFilterOpen(true)}
+          onInspectPart={onInspectPart}
+          onAddToBuild={onBuildWithCpu}
+          visibleLimit={visibleLimit}
+          onLoadMore={() => setVisibleLimit((prev) => prev + 24)}
+          loadMoreLabel="Daha Fazla İşlemci Göster"
+          emptyMessage="Seçtiğiniz filtrelere uygun işlemci bulunamadı."
+        />
       </div>
     </div>
   );

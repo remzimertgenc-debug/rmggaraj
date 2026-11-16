@@ -1,21 +1,4 @@
-import {
-  MarketplacePlatform,
-  PriceHistoryPoint,
-  PricingCatalogResponse,
-  ProductConditionGrade,
-} from '../types/pc';
-
-export interface CreateListingPayload {
-  partId: string;
-  productName?: string;
-  brandModel?: string;
-  listingPriceTry: number;
-  platform: MarketplacePlatform;
-  listingUrl: string;
-  listingDate: string;
-  conditionGrade: ProductConditionGrade;
-  isNew: boolean;
-}
+import { PriceHistoryPoint, PricingCatalogResponse } from '../types/pc';
 
 export async function fetchPricingCatalog(
   idToken?: string | null
@@ -35,12 +18,10 @@ export async function fetchPricingCatalog(
 }
 
 export async function fetchPartPriceHistory(
-  partId: string,
-  isNew?: boolean
+  partId: string
 ): Promise<PriceHistoryPoint[]> {
-  const qs = isNew === undefined ? '' : `?isNew=${isNew ? 'true' : 'false'}`;
   const response = await fetch(
-    `/api/pricing/history/${encodeURIComponent(partId)}${qs}`,
+    `/api/pricing/history/${encodeURIComponent(partId)}?isNew=true`,
     { headers: { Accept: 'application/json' } }
   );
   if (!response.ok) {
@@ -52,56 +33,3 @@ export async function fetchPartPriceHistory(
   return Array.isArray(data.history) ? data.history : [];
 }
 
-export async function submitMarketplaceListing(
-  payload: CreateListingPayload,
-  idToken: string | null
-): Promise<PricingCatalogResponse> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Accept: 'application/json',
-  };
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
-
-  const response = await fetch('/api/pricing/listings', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  const data = (await response.json().catch(() => ({}))) as {
-    error?: string;
-    catalog?: PricingCatalogResponse;
-  };
-
-  if (!response.ok || !data.catalog) {
-    throw new Error(data.error || 'İlan kaydı eklenemedi.');
-  }
-  return data.catalog;
-}
-
-export async function removeMarketplaceListing(
-  id: string,
-  idToken: string | null
-): Promise<PricingCatalogResponse> {
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  if (idToken) {
-    headers.Authorization = `Bearer ${idToken}`;
-  }
-
-  const response = await fetch(`/api/pricing/listings/${encodeURIComponent(id)}`, {
-    method: 'DELETE',
-    headers,
-  });
-
-  const data = (await response.json().catch(() => ({}))) as {
-    error?: string;
-    catalog?: PricingCatalogResponse;
-  };
-
-  if (!response.ok || !data.catalog) {
-    throw new Error(data.error || 'İlan kaydı silinemedi.');
-  }
-  return data.catalog;
-}

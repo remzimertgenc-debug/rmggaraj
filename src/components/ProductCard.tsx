@@ -7,7 +7,6 @@ interface ProductCardProps {
   product: DynamicCatalogProduct;
   pricing?: PartPricingInfo;
   onInspect: (category: PartCategoryKey, partId: string) => void;
-  onManageListings?: (partId?: string) => void;
 }
 
 export function ProductCard({
@@ -15,7 +14,7 @@ export function ProductCard({
   pricing,
   onInspect,
 }: ProductCardProps) {
-  const activePrice = pricing?.newPriceTry ?? pricing?.usedPriceTry ?? 0;
+  const activePrice = pricing?.newPriceTry ?? 0;
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-all duration-200 hover:scale-[1.015] hover:border-[#FF7900]/70 hover:shadow-[0_18px_40px_-16px_rgba(0,0,0,0.65)]">

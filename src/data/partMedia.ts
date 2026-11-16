@@ -117,7 +117,15 @@ export function getPartImage(
       return STUDIO_MEDIA_PATHS.coolerAir;
 
     case 'pcCase':
-      if (part?.id === 'case-atx-xl' || model.includes('lancool')) {
+      if (
+        part?.id === 'case-atx-xl' ||
+        model.includes('lancool') ||
+        model.includes('akvaryum') ||
+        model.includes('o11') ||
+        model.includes('nv5') ||
+        model.includes('7000d') ||
+        model.includes('full-tower')
+      ) {
         return STUDIO_MEDIA_PATHS.caseXl;
       }
       if (

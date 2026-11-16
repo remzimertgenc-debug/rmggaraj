@@ -6,7 +6,6 @@ import { Footer } from './components/Footer';
 import { GpusPage } from './components/GpusPage';
 import { HomePage } from './components/HomePage';
 import { LegalPage } from './components/LegalPage';
-import { ListingManagerModal } from './components/ListingManagerModal';
 import { Navbar } from './components/Navbar';
 import { PartDetailPage } from './components/PartDetailPage';
 import { SystemDetailPage } from './components/SystemDetailPage';
@@ -29,7 +28,6 @@ const DEFAULT_PREFERENCES: BuilderPreferences = {
   purpose: 'oyun',
   favoriteGames: ['Valorant', 'Cyberpunk 2077', 'Red Dead Redemption 2'],
   resolution: '1440p',
-  condition: 'sifir',
   cpuBrandPref: 'farketmez',
   gpuBrandPref: 'farketmez',
 };
@@ -113,9 +111,6 @@ export default function App() {
     useState<PricingCatalogResponse | null>(null);
   const [pricingLoading, setPricingLoading] = useState<boolean>(true);
   const [pricingError, setPricingError] = useState<string | null>(null);
-
-  const [listingModalOpen, setListingModalOpen] = useState<boolean>(false);
-  const [listingModalPartId, setListingModalPartId] = useState<string | null>(null);
 
   const loadPricingCatalog = useCallback(async () => {
     setPricingLoading(true);
@@ -327,11 +322,6 @@ export default function App() {
     });
   };
 
-  const handleOpenListings = (partId?: string) => {
-    setListingModalPartId(partId ?? null);
-    setListingModalOpen(true);
-  };
-
   return (
     <div className="flex min-h-screen flex-col bg-slate-900 text-slate-50">
       <Navbar
@@ -343,7 +333,6 @@ export default function App() {
         onSelectCategory={handleSelectCatalogCategory}
         onSelectBuild={handleOpenSystemDetail}
         onSelectPart={handleInspectPart}
-        onOpenListings={() => handleOpenListings()}
       />
 
       <main className="flex-1">
@@ -356,7 +345,6 @@ export default function App() {
             onNavigate={navigateTo}
             onInspectBuild={handleOpenSystemDetail}
             onInspectPart={handleInspectPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -382,7 +370,6 @@ export default function App() {
             pricingError={pricingError}
             initialStepField={builderInitialStep}
             onRetryPricing={loadPricingCatalog}
-            onChangePreferences={setPreferences}
             onChangeSelectedIds={setBuilderSelectedIds}
             onResetAll={() => {
               setPreferences(DEFAULT_PREFERENCES);
@@ -391,7 +378,6 @@ export default function App() {
             }}
             onInspectBuild={handleOpenSystemDetail}
             onInspectPart={handleInspectPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -400,7 +386,6 @@ export default function App() {
             pricingCatalog={pricingCatalog}
             onBuildWithGpu={handleBuildWithGpu}
             onInspectPart={handleInspectPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -409,7 +394,6 @@ export default function App() {
             pricingCatalog={pricingCatalog}
             onBuildWithCpu={handleBuildWithCpu}
             onInspectPart={handleInspectPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -420,7 +404,6 @@ export default function App() {
             onSelectCategory={handleSelectCatalogCategory}
             onInspectPart={handleInspectPart}
             onBuildWithPart={handleBuildWithPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -433,7 +416,6 @@ export default function App() {
             onCustomizeBuild={handleCustomizeBuild}
             onToggleCompare={handleToggleCompare}
             onInspectPart={handleInspectPart}
-            onManageListings={handleOpenListings}
           />
         )}
 
@@ -446,7 +428,6 @@ export default function App() {
             backLabel={BACK_PAGE_LABELS[returnPage]}
             onBack={() => navigateTo(returnPage)}
             onBuildWithPart={handleBuildWithPart}
-            onManageListings={handleOpenListings}
             onInspectBuild={handleOpenSystemDetail}
           />
         )}
@@ -462,15 +443,6 @@ export default function App() {
       <Footer
         onNavigate={navigateTo}
         onSelectCategory={handleSelectCatalogCategory}
-        onOpenListings={() => handleOpenListings()}
-      />
-
-      <ListingManagerModal
-        isOpen={listingModalOpen}
-        initialPartId={listingModalPartId}
-        catalog={pricingCatalog}
-        onClose={() => setListingModalOpen(false)}
-        onCatalogUpdated={setPricingCatalog}
       />
     </div>
   );
