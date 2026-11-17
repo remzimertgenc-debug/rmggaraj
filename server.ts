@@ -15,9 +15,28 @@ import {
   optionalAuth,
   requireAuth,
 } from './src/middleware/auth.ts';
+import { testDatabaseConnection } from './src/db/index.ts';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const IS_PROD = process.env.NODE_ENV === 'production';
+const DATABASE_HEALTH_TIMEOUT_MS = 5000;
+
+async function checkDatabaseHealth(): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const result = await Promise.race([
+      testDatabaseConnection(),
+      new Promise<{ ok: false }>((resolve) => {
+        timer = setTimeout(() => resolve({ ok: false }), DATABASE_HEALTH_TIMEOUT_MS);
+      }),
+    ]);
+    return Boolean(result?.ok);
+  } catch {
+    return false;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 async function startServer() {
   const app = express();
@@ -55,6 +74,16 @@ async function startServer() {
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true, service: 'rmg-tech-pricing-api' });
+  });
+
+  app.get('/api/health/database', async (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const connected = await checkDatabaseHealth();
+    if (connected) {
+      res.status(200).json({ ok: true, database: 'connected' });
+      return;
+    }
+    res.status(503).json({ ok: false, database: 'disconnected' });
   });
 
   app.get('/api/auth/me', requireAuth, (req: AuthRequest, res) => {
