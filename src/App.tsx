@@ -1,16 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CategoryCatalogPage } from './components/CategoryCatalogPage';
-import { PCBuilder } from './components/PCBuilder';
-import { CpusPage } from './components/CpusPage';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChunkErrorBoundary, lazyWithRetry } from './components/ChunkErrorBoundary';
 import { Footer } from './components/Footer';
-import { GpusPage } from './components/GpusPage';
 import { HomePage } from './components/HomePage';
-import { LegalPage } from './components/LegalPage';
 import { Navbar } from './components/Navbar';
-import { PartDetailPage } from './components/PartDetailPage';
-import { SmartAdvisorPage } from './components/SmartAdvisorPage';
-import { SystemDetailPage } from './components/SystemDetailPage';
-import { SystemsPage } from './components/SystemsPage';
 import { generateSampleBuilds } from './data/builds';
 import { getMergedCatalogParts } from './data/catalogAdapter';
 import { fetchPricingCatalog } from './services/pricingClient';
@@ -23,6 +15,69 @@ import {
   PricingCatalogResponse,
   SelectedPartIds,
 } from './types/pc';
+
+const SystemsPage = lazyWithRetry(() =>
+  import('./components/SystemsPage').then((m) => ({ default: m.SystemsPage }))
+);
+const PCBuilder = lazyWithRetry(() =>
+  import('./components/PCBuilder').then((m) => ({ default: m.PCBuilder }))
+);
+const SmartAdvisorPage = lazyWithRetry(() =>
+  import('./components/SmartAdvisorPage').then((m) => ({
+    default: m.SmartAdvisorPage,
+  }))
+);
+const GpusPage = lazyWithRetry(() =>
+  import('./components/GpusPage').then((m) => ({ default: m.GpusPage }))
+);
+const CpusPage = lazyWithRetry(() =>
+  import('./components/CpusPage').then((m) => ({ default: m.CpusPage }))
+);
+const CategoryCatalogPage = lazyWithRetry(() =>
+  import('./components/CategoryCatalogPage').then((m) => ({
+    default: m.CategoryCatalogPage,
+  }))
+);
+const SystemDetailPage = lazyWithRetry(() =>
+  import('./components/SystemDetailPage').then((m) => ({
+    default: m.SystemDetailPage,
+  }))
+);
+const PartDetailPage = lazyWithRetry(() =>
+  import('./components/PartDetailPage').then((m) => ({
+    default: m.PartDetailPage,
+  }))
+);
+const LegalPage = lazyWithRetry(() =>
+  import('./components/LegalPage').then((m) => ({ default: m.LegalPage }))
+);
+
+function PageLoadingFallback() {
+  return (
+    <div
+      className="mx-auto flex min-h-[60vh] max-w-[1320px] flex-col justify-center px-4 py-12 sm:px-6 lg:px-8"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="rounded-2xl border border-slate-800 bg-[#111827]/90 p-6 sm:p-8">
+        <div className="flex items-center gap-3">
+          <span
+            className="h-5 w-5 animate-spin rounded-full border-2 border-[#FF7900] border-t-transparent"
+            aria-hidden="true"
+          />
+          <p className="text-sm font-semibold text-slate-100">
+            Sayfa modülü yükleniyor...
+          </p>
+        </div>
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="h-28 animate-pulse rounded-xl border border-slate-800/80 bg-slate-800/50" />
+          <div className="h-28 animate-pulse rounded-xl border border-slate-800/80 bg-slate-800/50" />
+          <div className="h-28 animate-pulse rounded-xl border border-slate-800/80 bg-slate-800/50" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const DEFAULT_PREFERENCES: BuilderPreferences = {
   budget: 58000,
@@ -340,124 +395,131 @@ export default function App() {
       />
 
       <main className="flex-1">
-        {currentPage === 'home' && (
-          <HomePage
-            pricingCatalog={pricingCatalog}
-            pricingLoading={pricingLoading}
-            pricingError={pricingError}
-            onRetryPricing={loadPricingCatalog}
-            onNavigate={navigateTo}
-            onInspectBuild={handleOpenSystemDetail}
-            onInspectPart={handleInspectPart}
-          />
-        )}
+        <ChunkErrorBoundary
+          resetKey={`${currentPage}:${selectedCatalogCategory}:${selectedDetailPart?.partId ?? ''}:${detailBuild?.id ?? ''}`}
+          onGoHome={() => navigateTo('home')}
+        >
+          <Suspense fallback={<PageLoadingFallback />}>
+          {currentPage === 'home' && (
+            <HomePage
+              pricingCatalog={pricingCatalog}
+              pricingLoading={pricingLoading}
+              pricingError={pricingError}
+              onRetryPricing={loadPricingCatalog}
+              onNavigate={navigateTo}
+              onInspectBuild={handleOpenSystemDetail}
+              onInspectPart={handleInspectPart}
+            />
+          )}
 
-        {currentPage === 'systems' && (
-          <SystemsPage
-            pricingCatalog={pricingCatalog}
-            pricingLoading={pricingLoading}
-            pricingError={pricingError}
-            comparedBuilds={comparedBuilds}
-            onRetryPricing={loadPricingCatalog}
-            onInspectBuild={handleOpenSystemDetail}
-            onToggleCompare={handleToggleCompare}
-            onClearCompare={() => setComparedBuilds([])}
-            onCustomizeBuild={handleCustomizeBuild}
-          />
-        )}
+          {currentPage === 'systems' && (
+            <SystemsPage
+              pricingCatalog={pricingCatalog}
+              pricingLoading={pricingLoading}
+              pricingError={pricingError}
+              comparedBuilds={comparedBuilds}
+              onRetryPricing={loadPricingCatalog}
+              onInspectBuild={handleOpenSystemDetail}
+              onToggleCompare={handleToggleCompare}
+              onClearCompare={() => setComparedBuilds([])}
+              onCustomizeBuild={handleCustomizeBuild}
+            />
+          )}
 
-        {currentPage === 'builder' && (
-          <PCBuilder
-            preferences={preferences}
-            selectedIds={builderSelectedIds}
-            pricingCatalog={pricingCatalog}
-            pricingError={pricingError}
-            initialStepField={builderInitialStep}
-            onRetryPricing={loadPricingCatalog}
-            onChangeSelectedIds={setBuilderSelectedIds}
-            onResetAll={() => {
-              setPreferences(DEFAULT_PREFERENCES);
-              setBuilderSelectedIds(EMPTY_SELECTED_IDS);
-              setBuilderInitialStep(null);
-            }}
-            onInspectBuild={handleOpenSystemDetail}
-            onInspectPart={handleInspectPart}
-            onOpenAdvisor={() => navigateTo('advisor')}
-          />
-        )}
+          {currentPage === 'builder' && (
+            <PCBuilder
+              preferences={preferences}
+              selectedIds={builderSelectedIds}
+              pricingCatalog={pricingCatalog}
+              pricingError={pricingError}
+              initialStepField={builderInitialStep}
+              onRetryPricing={loadPricingCatalog}
+              onChangeSelectedIds={setBuilderSelectedIds}
+              onResetAll={() => {
+                setPreferences(DEFAULT_PREFERENCES);
+                setBuilderSelectedIds(EMPTY_SELECTED_IDS);
+                setBuilderInitialStep(null);
+              }}
+              onInspectBuild={handleOpenSystemDetail}
+              onInspectPart={handleInspectPart}
+              onOpenAdvisor={() => navigateTo('advisor')}
+            />
+          )}
 
-        {currentPage === 'advisor' && (
-          <SmartAdvisorPage
-            initialPreferences={preferences}
-            pricingCatalog={pricingCatalog}
-            pricingLoading={pricingLoading}
-            pricingError={pricingError}
-            onRetryPricing={loadPricingCatalog}
-            onUpdatePreferences={setPreferences}
-            onInspectBuild={handleOpenSystemDetail}
-            onCustomizeBuild={handleCustomizeBuild}
-            onInspectPart={handleInspectPart}
-            onOpenManualBuilder={() => navigateTo('builder')}
-          />
-        )}
+          {currentPage === 'advisor' && (
+            <SmartAdvisorPage
+              initialPreferences={preferences}
+              pricingCatalog={pricingCatalog}
+              pricingLoading={pricingLoading}
+              pricingError={pricingError}
+              onRetryPricing={loadPricingCatalog}
+              onUpdatePreferences={setPreferences}
+              onInspectBuild={handleOpenSystemDetail}
+              onCustomizeBuild={handleCustomizeBuild}
+              onInspectPart={handleInspectPart}
+              onOpenManualBuilder={() => navigateTo('builder')}
+            />
+          )}
 
-        {currentPage === 'gpus' && (
-          <GpusPage
-            pricingCatalog={pricingCatalog}
-            onBuildWithGpu={handleBuildWithGpu}
-            onInspectPart={handleInspectPart}
-          />
-        )}
+          {currentPage === 'gpus' && (
+            <GpusPage
+              pricingCatalog={pricingCatalog}
+              onBuildWithGpu={handleBuildWithGpu}
+              onInspectPart={handleInspectPart}
+            />
+          )}
 
-        {currentPage === 'cpus' && (
-          <CpusPage
-            pricingCatalog={pricingCatalog}
-            onBuildWithCpu={handleBuildWithCpu}
-            onInspectPart={handleInspectPart}
-          />
-        )}
+          {currentPage === 'cpus' && (
+            <CpusPage
+              pricingCatalog={pricingCatalog}
+              onBuildWithCpu={handleBuildWithCpu}
+              onInspectPart={handleInspectPart}
+            />
+          )}
 
-        {currentPage === 'catalog' && (
-          <CategoryCatalogPage
-            category={selectedCatalogCategory}
-            pricingCatalog={pricingCatalog}
-            onSelectCategory={handleSelectCatalogCategory}
-            onInspectPart={handleInspectPart}
-            onBuildWithPart={handleBuildWithPart}
-          />
-        )}
+          {currentPage === 'catalog' && (
+            <CategoryCatalogPage
+              category={selectedCatalogCategory}
+              pricingCatalog={pricingCatalog}
+              onSelectCategory={handleSelectCatalogCategory}
+              onInspectPart={handleInspectPart}
+              onBuildWithPart={handleBuildWithPart}
+            />
+          )}
 
-        {currentPage === 'detail' && detailBuild && (
-          <SystemDetailPage
-            build={detailBuild}
-            pricingCatalog={pricingCatalog}
-            isCompared={comparedBuilds.some((b) => b.id === detailBuild.id)}
-            onBack={() => navigateTo('systems')}
-            onCustomizeBuild={handleCustomizeBuild}
-            onToggleCompare={handleToggleCompare}
-            onInspectPart={handleInspectPart}
-          />
-        )}
+          {currentPage === 'detail' && detailBuild && (
+            <SystemDetailPage
+              build={detailBuild}
+              pricingCatalog={pricingCatalog}
+              isCompared={comparedBuilds.some((b) => b.id === detailBuild.id)}
+              onBack={() => navigateTo('systems')}
+              onCustomizeBuild={handleCustomizeBuild}
+              onToggleCompare={handleToggleCompare}
+              onInspectPart={handleInspectPart}
+            />
+          )}
 
-        {currentPage === 'part-detail' && selectedDetailPart && (
-          <PartDetailPage
-            category={selectedDetailPart.category}
-            partId={selectedDetailPart.partId}
-            pricingCatalog={pricingCatalog}
-            relatedBuilds={searchableBuilds}
-            backLabel={BACK_PAGE_LABELS[returnPage]}
-            onBack={() => navigateTo(returnPage)}
-            onBuildWithPart={handleBuildWithPart}
-            onInspectBuild={handleOpenSystemDetail}
-          />
-        )}
+          {currentPage === 'part-detail' && selectedDetailPart && (
+            <PartDetailPage
+              category={selectedDetailPart.category}
+              partId={selectedDetailPart.partId}
+              pricingCatalog={pricingCatalog}
+              relatedBuilds={searchableBuilds}
+              backLabel={BACK_PAGE_LABELS[returnPage]}
+              onBack={() => navigateTo(returnPage)}
+              onBuildWithPart={handleBuildWithPart}
+              onInspectBuild={handleOpenSystemDetail}
+            />
+          )}
 
-        {(currentPage === 'terms' ||
-          currentPage === 'privacy' ||
-          currentPage === 'cookies' ||
-          currentPage === 'kvkk') && (
-          <LegalPage pageId={currentPage} onNavigate={navigateTo} />
-        )}
+          {(currentPage === 'terms' ||
+            currentPage === 'privacy' ||
+            currentPage === 'cookies' ||
+            currentPage === 'kvkk') && (
+            <LegalPage pageId={currentPage} onNavigate={navigateTo} />
+          )}
+          </Suspense>
+        </ChunkErrorBoundary>
       </main>
 
       <Footer

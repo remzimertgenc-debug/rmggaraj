@@ -7,7 +7,7 @@ import {
   SlidersHorizontal,
   Store,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { formatTry } from '../data/builds';
 import { findMergedPartById, getMergedCatalogParts } from '../data/catalogAdapter';
 import {
@@ -23,8 +23,12 @@ import {
 } from '../types/pc';
 import { buildAffiliateUrl } from '../utils/affiliate';
 import { AdBanner } from './AdBanner';
-import { PriceHistoryChart } from './PriceHistoryChart';
+import { ChunkErrorBoundary, lazyWithRetry } from './ChunkErrorBoundary';
 import { ProductImage } from './ProductImage';
+
+const PriceHistoryChart = lazyWithRetry(() =>
+  import('./PriceHistoryChart').then((m) => ({ default: m.PriceHistoryChart }))
+);
 
 interface PartDetailPageProps {
   category: PartCategoryKey;
@@ -674,10 +678,32 @@ export function PartDetailPage({
               Fiyat Geçmişi Grafiği
             </h3>
           </div>
-          <PriceHistoryChart
-            data={priceHistory}
-            productName={resolvedModel}
-          />
+          <ChunkErrorBoundary
+            variant="inline"
+            resetKey={`${category}:${partId}`}
+          >
+            <Suspense
+              fallback={
+                <div
+                  className="flex h-[320px] items-center justify-center rounded-2xl border border-slate-800 bg-[#111827] px-6 text-sm text-[#94A3B8]"
+                  role="status"
+                >
+                  <span className="inline-flex items-center gap-2.5">
+                    <span
+                      className="h-4 w-4 animate-spin rounded-full border-2 border-[#FF7900] border-t-transparent"
+                      aria-hidden="true"
+                    />
+                    Fiyat geçmişi grafiği yükleniyor...
+                  </span>
+                </div>
+              }
+            >
+              <PriceHistoryChart
+                data={priceHistory}
+                productName={resolvedModel}
+              />
+            </Suspense>
+          </ChunkErrorBoundary>
         </div>
       </section>
 
