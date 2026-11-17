@@ -6,7 +6,7 @@ import type {
   MarketplacePlatform,
   ProductConditionGrade,
 } from '../types/pc.ts';
-import { db, isDatabaseConfigured } from './index.ts';
+import { db, handleDatabaseQueryFailure, isDatabaseConfigured } from './index.ts';
 import { listings, priceLogs } from './schema.ts';
 
 export interface DbCreateListingParams {
@@ -46,7 +46,8 @@ interface MemoryListingRecord {
 interface MemoryPriceLogRecord {
   id: number;
   partId: string;
-  listingId: number;
+  listingId: number | null;
+  platform: string | null;
   priceTry: number;
   isNew: boolean;
   recordedAt: Date;
@@ -102,6 +103,7 @@ function ensureMemorySeeded() {
             id: nextMemoryLogId++,
             partId: item.partId,
             listingId: id,
+            platform: item.platform || 'Yetkili Sağlayıcı',
             priceTry: Math.round(item.listingPriceTry),
             isNew: true,
             recordedAt: checkedAt,
@@ -168,6 +170,7 @@ function createMemoryListing(input: DbCreateListingParams): MarketplaceListing {
     id: nextMemoryLogId++,
     partId: input.partId,
     listingId: created.id,
+    platform: input.platform,
     priceTry: created.listingPriceTry,
     isNew: created.isNew,
     recordedAt: now,
@@ -271,6 +274,7 @@ function upsertMemoryStoreBotListing(
           id: nextMemoryLogId++,
           partId: input.partId,
           listingId,
+          platform: input.storeName,
           priceTry: Math.round((roundedPrice * point.factor) / 50) * 50,
           isNew: true,
           recordedAt: pastDate,
@@ -283,6 +287,7 @@ function upsertMemoryStoreBotListing(
     id: nextMemoryLogId++,
     partId: input.partId,
     listingId,
+    platform: input.storeName,
     priceTry: roundedPrice,
     isNew: true,
     recordedAt: now,
@@ -306,7 +311,7 @@ export async function getDatabaseListings(
       .orderBy(desc(listings.createdAt), desc(listings.id));
     return rows.map((r) => mapRowToMarketplaceListing(r, requestingUserId));
   } catch (error) {
-    console.warn('Database listings query failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('listings.getDatabaseListings', error);
     return getMemoryListings(requestingUserId);
   }
 }
@@ -340,6 +345,7 @@ export async function createDatabaseListing(
     await db.insert(priceLogs).values({
       partId: input.partId,
       listingId: created.id,
+      platform: input.platform,
       priceTry: created.listingPriceTry,
       isNew: created.isNew,
       recordedAt: now,
@@ -347,7 +353,7 @@ export async function createDatabaseListing(
 
     return mapRowToMarketplaceListing(created, input.userId);
   } catch (error) {
-    console.warn('Database create listing failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('listings.createDatabaseListing', error);
     return createMemoryListing(input);
   }
 }
@@ -385,7 +391,7 @@ export async function deleteDatabaseListing(
 
     return deleted.length > 0 ? 'deleted' : 'not_found';
   } catch (error) {
-    console.warn('Database delete listing failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('listings.deleteDatabaseListing', error);
     return deleteMemoryListing(listingIdRaw, userId);
   }
 }
@@ -421,7 +427,7 @@ export async function getPartPriceHistory(
       price: r.priceTry,
     }));
   } catch (error) {
-    console.warn('Database price history query failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('listings.getPartPriceHistory', error);
     return getMemoryPartPriceHistory(partId, isNew);
   }
 }
@@ -514,6 +520,7 @@ export async function upsertStoreBotListing(
     await db.insert(priceLogs).values({
       partId: input.partId,
       listingId,
+      platform: input.storeName,
       priceTry: roundedPrice,
       isNew: true,
       recordedAt: now,
@@ -521,7 +528,7 @@ export async function upsertStoreBotListing(
 
     return { action, listingId };
   } catch (error) {
-    console.warn('Database store bot upsert failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('listings.upsertStoreBotListing', error);
     return upsertMemoryStoreBotListing(input);
   }
 }

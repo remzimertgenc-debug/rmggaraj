@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
 import type { DecodedIdToken } from 'firebase-admin/auth';
+import { DatabaseOperationError } from '../db/index.ts';
 import { getOrCreateUser } from '../db/users.ts';
 import { adminAuth } from '../lib/firebase-admin.ts';
 
@@ -31,6 +32,9 @@ export const requireAuth = async (
     req.dbUserId = dbUser.id;
     next();
   } catch (error) {
+    if (error instanceof DatabaseOperationError) {
+      return res.status(503).json({ error: error.message });
+    }
     console.error('Error verifying Firebase ID token:', error);
     return res
       .status(401)
@@ -40,7 +44,7 @@ export const requireAuth = async (
 
 export const optionalAuth = async (
   req: AuthRequest,
-  _res: Response,
+  res: Response,
   next: NextFunction
 ) => {
   const authHeader = req.headers.authorization;
@@ -58,7 +62,10 @@ export const optionalAuth = async (
       decodedToken.email || ''
     );
     req.dbUserId = dbUser.id;
-  } catch {
+  } catch (error) {
+    if (error instanceof DatabaseOperationError) {
+      return res.status(503).json({ error: error.message });
+    }
     // Public katalog isteklerinde geçersiz token sessizce misafir olarak işlenir
   }
   next();

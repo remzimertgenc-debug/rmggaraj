@@ -1,4 +1,4 @@
-import { db, isDatabaseConfigured } from './index.ts';
+import { db, handleDatabaseQueryFailure, isDatabaseConfigured } from './index.ts';
 import { users } from './schema.ts';
 
 interface InMemoryUser {
@@ -50,7 +50,7 @@ export async function getOrCreateUser(uid: string, email: string) {
 
     return result[0];
   } catch (error) {
-    console.warn('Database user upsert failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('users.getOrCreateUser', error);
     return getOrCreateMemoryUser(uid, email);
   }
 }

@@ -9,6 +9,7 @@ import {
   RAM_DB,
   SSD_DB,
 } from '../../shared/hardwareCatalog.ts';
+import { DatabaseOperationError } from '../../src/db/index.ts';
 import {
   upsertStoreBotListing,
   type StoreBotPlatform,
@@ -716,7 +717,10 @@ export async function runPriceBotSync(): Promise<PriceBotSyncResult> {
       skipped,
     };
   } catch (error) {
-    console.error('[PriceBot] Fiyat güncelleme görevi hata verdi:', error);
+    console.error('[PriceBot] Fiyat güncelleme görevi hata verdi:', error instanceof Error ? error.message : error);
+    if (error instanceof DatabaseOperationError) {
+      throw error;
+    }
     return {
       processed: feed.length,
       matched,
@@ -736,7 +740,12 @@ export function startPriceBot(): ScheduledTask {
   }
 
   scheduledTask = cron.schedule('0 * * * *', () => {
-    void runPriceBotSync();
+    void runPriceBotSync().catch((error) => {
+      console.error(
+        '[PriceBot] Zamanlanmış senkronizasyon hatası:',
+        error instanceof Error ? error.message : error
+      );
+    });
   });
 
   console.info(

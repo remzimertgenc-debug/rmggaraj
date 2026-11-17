@@ -455,6 +455,90 @@ export function logSafeDatabaseDiagnostic(summary: DatabaseDiagnosticSummary): v
   console.error('[DB Health] PostgreSQL connection check failed:', summary);
 }
 
+export function isProductionEnvironment(): boolean {
+  return (
+    process.env.NODE_ENV === 'production' ||
+    process.env.VERCEL_ENV === 'production'
+  );
+}
+
+export function shouldDisallowMemoryFallback(): boolean {
+  return isDatabaseConfigured && isProductionEnvironment();
+}
+
+export class DatabaseOperationError extends Error {
+  public readonly operation: string;
+  public readonly category: DatabaseErrorCategory;
+  public readonly errorCode: string;
+
+  constructor(operation: string, error: unknown) {
+    const classified = classifyDatabaseError(error);
+    const pgCode =
+      error &&
+      typeof error === 'object' &&
+      'code' in error &&
+      typeof (error as { code?: unknown }).code === 'string' &&
+      SAFE_CODE_PATTERN.test((error as { code: string }).code.trim().toUpperCase())
+        ? (error as { code: string }).code.trim().toUpperCase()
+        : classified.errorCode;
+
+    let reasonHint = 'Veritabanı sorgusu başarısız oldu.';
+    if (pgCode === '42P01') {
+      reasonHint =
+        'Gerekli veritabanı tablosu bulunamadı (migration henüz uygulanmamış olabilir).';
+    } else if (pgCode === '42703') {
+      reasonHint =
+        'Veritabanı sütun şeması güncel değil (bekleyen migration olabilir).';
+    } else if (pgCode === '23503') {
+      reasonHint = 'Veritabanı ilişki (foreign key) doğrulaması başarısız oldu.';
+    } else if (pgCode === '23505') {
+      reasonHint = 'Veritabanı tekillik (unique) kısıtı ihlal edildi.';
+    } else if (classified.category === 'CONNECTION_TIMEOUT') {
+      reasonHint = 'Veritabanı bağlantısı zaman aşımına uğradı.';
+    } else if (classified.category === 'POSTGRES_AUTH_ERROR') {
+      reasonHint = 'Veritabanı kimlik doğrulaması başarısız oldu.';
+    } else if (classified.category === 'SSL_TLS_ERROR') {
+      reasonHint = 'Veritabanı SSL/TLS doğrulaması başarısız oldu.';
+    } else if (classified.category === 'DNS_ERROR') {
+      reasonHint = 'Veritabanı sunucu adresi çözümlenemedi.';
+    }
+
+    super(`[DB:${operation}] ${reasonHint} (${classified.category} / ${pgCode})`);
+    this.name = 'DatabaseOperationError';
+    this.operation = operation;
+    this.category = classified.category;
+    this.errorCode = pgCode;
+  }
+}
+
+export function handleDatabaseQueryFailure(
+  operation: string,
+  error: unknown
+): DatabaseOperationError {
+  const opError =
+    error instanceof DatabaseOperationError
+      ? error
+      : new DatabaseOperationError(operation, error);
+
+  const logPayload = {
+    operation: opError.operation,
+    category: opError.category,
+    errorCode: opError.errorCode,
+    source: resolvedTarget?.source ?? 'none',
+    hasDatabaseUrl: resolutionState.hasDatabaseUrl,
+    production: isProductionEnvironment(),
+    fallbackBlocked: shouldDisallowMemoryFallback(),
+  };
+
+  if (shouldDisallowMemoryFallback()) {
+    console.error('[DB Error] Production database operation failed (RAM fallback disabled):', logPayload);
+    throw opError;
+  }
+
+  console.warn('[DB Fallback] Development database query failed — using in-memory fallback:', logPayload);
+  return opError;
+}
+
 export async function testDatabaseConnection(options?: {
   timeoutMs?: number;
 }): Promise<DatabaseConnectionTestResult> {

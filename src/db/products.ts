@@ -1,6 +1,6 @@
 import { desc } from 'drizzle-orm';
 import type { DynamicCatalogProduct, PartCategoryKey } from '../types/pc.ts';
-import { db, isDatabaseConfigured } from './index.ts';
+import { db, handleDatabaseQueryFailure, isDatabaseConfigured } from './index.ts';
 import { products } from './schema.ts';
 
 export interface UpsertDatabaseProductInput {
@@ -110,7 +110,7 @@ export async function getDatabaseProducts(): Promise<DynamicCatalogProduct[]> {
 
     return rows.map(mapProductRow);
   } catch (error) {
-    console.warn('Database products query failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('products.getDatabaseProducts', error);
     return Array.from(memoryProducts.values()).reverse();
   }
 }
@@ -175,7 +175,7 @@ export async function upsertDatabaseProduct(
 
     return mapProductRow(saved);
   } catch (error) {
-    console.warn('Database upsert product failed — falling back to in-memory store:', error);
+    handleDatabaseQueryFailure('products.upsertDatabaseProduct', error);
     return upsertMemoryProduct(input);
   }
 }

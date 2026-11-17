@@ -38,8 +38,9 @@ export const priceLogs = pgTable('price_logs', {
   id: serial('id').primaryKey(),
   partId: text('part_id').notNull(),
   listingId: integer('listing_id').references(() => listings.id, {
-    onDelete: 'cascade',
+    onDelete: 'set null',
   }),
+  platform: text('platform'),
   priceTry: integer('price_try').notNull(),
   isNew: boolean('is_new').notNull().default(true),
   recordedAt: timestamp('recorded_at').defaultNow().notNull(),

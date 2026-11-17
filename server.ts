@@ -172,7 +172,12 @@ async function startServer() {
     console.log(`RMG TECH server running at http://0.0.0.0:${PORT}`);
     startPriceBot();
     if (!process.env.SQL_HOST?.trim()) {
-      void runPriceBotSync();
+      void runPriceBotSync().catch((error) => {
+        console.error(
+          '[PriceBot] Başlangıç senkronizasyonu veritabanı hatası:',
+          error instanceof Error ? error.message : error
+        );
+      });
     }
   });
 }
