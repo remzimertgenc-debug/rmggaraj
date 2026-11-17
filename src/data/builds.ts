@@ -549,10 +549,27 @@ function getGpuResolutionScore(gpu: GpuPart, res: TargetResolution): number {
   return gpu.score1080p;
 }
 
+const CANDIDATE_POOL_CACHE = new Map<string, CandidateBuild[]>();
+
+function getCandidateCacheKey(
+  prefs: BuilderPreferences,
+  catalog: PricingCatalogResponse | null
+): string {
+  const catalogStamp = catalog?.providerStatus.lastSyncedAt ?? 'no-catalog';
+  const gamesKey = [...prefs.favoriteGames].sort().join('|');
+  return `${catalogStamp}::${prefs.purpose}::${prefs.resolution}::${prefs.cpuBrandPref}::${prefs.gpuBrandPref}::${gamesKey}`;
+}
+
 function generateVerifiedCandidates(
   prefs: BuilderPreferences,
   catalog: PricingCatalogResponse | null
 ): CandidateBuild[] {
+  const cacheKey = getCandidateCacheKey(prefs, catalog);
+  const cached = CANDIDATE_POOL_CACHE.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
   const priceOf = (id: string) => getPricingForPart(id, catalog).price;
 
   const cpus = CPU_DB.filter((p) => !p.isUnverifiedSpecSample)
@@ -601,11 +618,14 @@ function generateVerifiedCandidates(
   const coolers = byPriceAsc(CPU_COOLER_DB);
 
   const { prefersEsports, prefersHeavyAaa } = analyzeGameProfile(prefs.favoriteGames);
-  const preferredSsd =
+  const baseSsd =
     (prefersHeavyAaa || prefs.purpose === 'tasarim') &&
     sortedSsds.some((s) => s.capacityGb >= 1000)
       ? sortedSsds.find((s) => s.capacityGb >= 1000) ?? sortedSsds[0]
       : sortedSsds[0];
+  const proSsd =
+    sortedSsds.find((s) => s.capacityGb >= 2000 && s.id !== baseSsd?.id) ?? null;
+  const ssdOptions = proSsd ? [baseSsd, proSsd] : [baseSsd];
 
   const candidates: CandidateBuild[] = [];
 
@@ -627,7 +647,7 @@ function generateVerifiedCandidates(
         ? [validBoards[0], validBoards[validBoards.length - 1]]
         : [validBoards[0]];
 
-    const cooler = coolers.find(
+    const compatibleCoolers = coolers.filter(
       (cl) =>
         cl.supportedSockets.includes(cpu.socket) &&
         cpu.maxPowerWatts !== null &&
@@ -636,7 +656,16 @@ function generateVerifiedCandidates(
         (!cpu.requiresDedicatedCooler || cl.coolerType !== 'Stok / Giriş')
     );
 
-    if (!cooler) continue;
+    if (compatibleCoolers.length === 0) continue;
+
+    const baseCooler = compatibleCoolers[0];
+    const perfCooler =
+      compatibleCoolers.find(
+        (cl) =>
+          cl.id !== baseCooler.id &&
+          (cl.coolerType === 'Sıvı Soğutma' || (cl.maxTdpCapacityWatts ?? 0) >= 250)
+      ) ?? null;
+    const coolerOptions = perfCooler ? [baseCooler, perfCooler] : [baseCooler];
 
     for (const mb of boardOptions) {
       const validRams = rams.filter(
@@ -659,151 +688,171 @@ function generateVerifiedCandidates(
         prefs.purpose === 'tasarim' || prefs.purpose === 'yayin'
           ? validRams.find((r) => (r.capacityGb ?? 0) >= 32) ?? validRams[validRams.length - 1]
           : validRams[0];
-      const highRam = validRams.find((r) => (r.capacityGb ?? 0) >= 32) ?? validRams[validRams.length - 1];
+      const highRam =
+        validRams.find((r) => (r.capacityGb ?? 0) >= 32 && r.id !== preferredRam.id) ??
+        validRams[validRams.length - 1];
       const ramOptions =
         preferredRam.id === highRam.id ? [preferredRam] : [preferredRam, highRam];
 
       for (const ram of ramOptions) {
-        const ssd = preferredSsd;
-
-        for (const gpu of gpus) {
-          if (
-            gpu.isIntegrated &&
-            (!cpu.hasIntegratedGraphics || gpu.brand !== cpu.brand)
-          ) {
-            continue;
-          }
-
-          const validCase = cases.find((c) => {
-            if (!c.supportedFormFactors.includes(mb.formFactor)) return false;
+        for (const cooler of coolerOptions) {
+          for (const gpu of gpus) {
             if (
-              !gpu.isIntegrated &&
-              (gpu.lengthMm === null ||
-                c.maxGpuLengthMm === null ||
-                gpu.lengthMm > c.maxGpuLengthMm ||
-                gpu.widthSlots === null ||
-                c.expansionSlots === null ||
-                gpu.widthSlots > c.expansionSlots)
+              gpu.isIntegrated &&
+              (!cpu.hasIntegratedGraphics || gpu.brand !== cpu.brand)
             ) {
-              return false;
+              continue;
             }
-            if (cooler.coolerType === 'Sıvı Soğutma') {
+
+            const validCase = cases.find((c) => {
+              if (!c.supportedFormFactors.includes(mb.formFactor)) return false;
+              if (
+                !gpu.isIntegrated &&
+                (gpu.lengthMm === null ||
+                  c.maxGpuLengthMm === null ||
+                  gpu.lengthMm > c.maxGpuLengthMm ||
+                  gpu.widthSlots === null ||
+                  c.expansionSlots === null ||
+                  gpu.widthSlots > c.expansionSlots)
+              ) {
+                return false;
+              }
+              if (cooler.coolerType === 'Sıvı Soğutma') {
+                return (
+                  cooler.radiatorMm !== null &&
+                  c.supportedRadiatorMm.includes(cooler.radiatorMm)
+                );
+              }
               return (
-                cooler.radiatorMm !== null &&
-                c.supportedRadiatorMm.includes(cooler.radiatorMm)
+                cooler.heightMm !== null &&
+                c.maxCoolerHeightMm !== null &&
+                cooler.heightMm <= c.maxCoolerHeightMm
               );
-            }
-            return (
-              cooler.heightMm !== null &&
-              c.maxCoolerHeightMm !== null &&
-              cooler.heightMm <= c.maxCoolerHeightMm
-            );
-          });
-
-          if (!validCase) continue;
-
-          const validPsu = psus.find((p) => {
-            const check = evaluateCompatibility({
-              cpu,
-              gpu,
-              motherboard: mb,
-              ram,
-              psu: p,
-              pcCase: validCase,
-              cooler,
             });
-            return check.overallStatus === 'verified';
-          });
 
-          if (!validPsu) continue;
+            if (!validCase) continue;
 
-          const ids: SelectedPartIds = {
-            cpuId: cpu.id,
-            gpuId: gpu.id,
-            motherboardId: mb.id,
-            ramId: ram.id,
-            ssdId: ssd.id,
-            psuId: validPsu.id,
-            caseId: validCase.id,
-            coolerId: cooler.id,
-          };
+            const validPsu = psus.find((p) => {
+              const check = evaluateCompatibility({
+                cpu,
+                gpu,
+                motherboard: mb,
+                ram,
+                psu: p,
+                pcCase: validCase,
+                cooler,
+              });
+              return check.overallStatus === 'verified';
+            });
 
-          const cpuPrice = priceOf(cpu.id);
-          const gpuPrice = priceOf(gpu.id);
+            if (!validPsu) continue;
 
-          const price =
-            cpuPrice +
-            gpuPrice +
-            priceOf(mb.id) +
-            priceOf(ram.id) +
-            priceOf(ssd.id) +
-            priceOf(validPsu.id) +
-            priceOf(validCase.id) +
-            priceOf(cooler.id);
+            const basePrice =
+              priceOf(cpu.id) +
+              priceOf(gpu.id) +
+              priceOf(mb.id) +
+              priceOf(ram.id) +
+              priceOf(validPsu.id) +
+              priceOf(validCase.id) +
+              priceOf(cooler.id);
 
-          // Dengeli bütçe dağılımı kontrolü (GPU/CPU aşırı dengesizliğini sert cezalandır)
-          const tierGap = Math.abs(gpu.tierLevel - cpu.tierLevel);
-          const balancePenalty =
-            prefs.purpose === 'ofis'
-              ? 0
-              : tierGap > 1
-                ? (tierGap - 1) * 32
-                : 0;
-
-          const gpuScore = getGpuResolutionScore(gpu, prefs.resolution);
-          let score = 0;
-
-          if (prefs.purpose === 'ofis') {
-            score =
-              cpu.productivityScore * 0.55 +
-              (ram.capacityGb ?? 16) * 0.6 +
-              (ssd.capacityGb >= 1000 ? 12 : 4) +
-              (gpu.isIntegrated ? 18 : gpuScore * 0.15);
-          } else if (prefs.purpose === 'tasarim') {
-            score =
-              cpu.productivityScore * 0.45 +
-              gpuScore * 0.4 +
-              (gpu.vramGb ?? 0) * 1.4 +
-              (ram.capacityGb ?? 16) * 0.45 +
-              (gpu.supportsNvenc ? 8 : 0) -
-              balancePenalty;
-          } else if (prefs.purpose === 'yayin') {
-            score =
-              cpu.productivityScore * 0.35 +
-              cpu.gamingScore * 0.25 +
-              gpuScore * 0.4 +
-              (gpu.supportsNvenc ? 12 : 0) +
-              (ram.capacityGb ?? 16) * 0.3 -
-              balancePenalty;
-          } else {
-            const cpuWeight = prefersEsports && prefs.resolution === '1080p' ? 0.42 : 0.28;
-            const gpuWeight = 1 - cpuWeight;
-            const vramBonus =
-              prefs.resolution === '4k'
-                ? (gpu.vramGb ?? 0) >= 16
-                  ? 14
-                  : 0
-                : prefs.resolution === '1440p'
-                  ? (gpu.vramGb ?? 0) >= 12
-                    ? 10
-                    : 0
+            const tierGap = Math.abs(gpu.tierLevel - cpu.tierLevel);
+            const balancePenalty =
+              prefs.purpose === 'ofis'
+                ? 0
+                : tierGap > 1
+                  ? (tierGap - 1) * 32
                   : 0;
-            const heavyBonus = prefersHeavyAaa ? (gpu.vramGb ?? 0) * 0.6 : 0;
-            score =
-              cpu.gamingScore * cpuWeight +
-              gpuScore * gpuWeight +
-              vramBonus +
-              heavyBonus +
-              ((ram.capacityGb ?? 16) >= 32 ? 5 : 0) -
-              balancePenalty;
-          }
 
-          candidates.push({ ids, price, score, cpu, gpu });
+            const gpuScore = getGpuResolutionScore(gpu, prefs.resolution);
+            const coolerBonus = cooler.coolerType === 'Sıvı Soğutma' ? 1.5 : 0;
+
+            for (const ssd of ssdOptions) {
+              const ids: SelectedPartIds = {
+                cpuId: cpu.id,
+                gpuId: gpu.id,
+                motherboardId: mb.id,
+                ramId: ram.id,
+                ssdId: ssd.id,
+                psuId: validPsu.id,
+                caseId: validCase.id,
+                coolerId: cooler.id,
+              };
+
+              const price = basePrice + priceOf(ssd.id);
+              const storageBonus = ssd.capacityGb >= 2000 ? 2.5 : ssd.capacityGb >= 1000 ? 1 : 0;
+              let score = 0;
+
+              if (prefs.purpose === 'ofis') {
+                score =
+                  cpu.productivityScore * 0.65 +
+                  (ram.capacityGb ?? 16) * 0.55 +
+                  (ssd.capacityGb >= 2000 ? 14 : ssd.capacityGb >= 1000 ? 9 : 3) +
+                  (gpu.isIntegrated ? 6 : gpuScore * 0.16) +
+                  (gpu.vramGb ?? 0) * 0.05 +
+                  coolerBonus;
+              } else if (prefs.purpose === 'tasarim') {
+                score =
+                  cpu.productivityScore * 0.45 +
+                  gpuScore * 0.4 +
+                  (gpu.vramGb ?? 0) * 1.4 +
+                  (ram.capacityGb ?? 16) * 0.45 +
+                  (gpu.supportsNvenc ? 8 : 0) +
+                  storageBonus +
+                  coolerBonus -
+                  balancePenalty;
+              } else if (prefs.purpose === 'yayin') {
+                score =
+                  cpu.productivityScore * 0.35 +
+                  cpu.gamingScore * 0.25 +
+                  gpuScore * 0.4 +
+                  (gpu.vramGb ?? 0) * 0.15 +
+                  (gpu.supportsNvenc ? 12 : 0) +
+                  (ram.capacityGb ?? 16) * 0.3 +
+                  storageBonus +
+                  coolerBonus -
+                  balancePenalty;
+              } else {
+                const cpuWeight = prefersEsports && prefs.resolution === '1080p' ? 0.42 : 0.28;
+                const gpuWeight = 1 - cpuWeight;
+                const vramBonus =
+                  prefs.resolution === '4k'
+                    ? (gpu.vramGb ?? 0) >= 16
+                      ? 14
+                      : 0
+                    : prefs.resolution === '1440p'
+                      ? (gpu.vramGb ?? 0) >= 12
+                        ? 10
+                        : 0
+                      : 0;
+                const heavyBonus = prefersHeavyAaa ? (gpu.vramGb ?? 0) * 0.6 : 0;
+                score =
+                  cpu.gamingScore * cpuWeight +
+                  gpuScore * gpuWeight +
+                  (gpu.vramGb ?? 0) * 0.1 +
+                  vramBonus +
+                  heavyBonus +
+                  ((ram.capacityGb ?? 16) >= 32 ? 4 : 0) +
+                  storageBonus +
+                  coolerBonus -
+                  balancePenalty;
+              }
+
+              candidates.push({ ids, price, score, cpu, gpu });
+            }
+          }
         }
       }
     }
   }
 
+  if (CANDIDATE_POOL_CACHE.size >= 12) {
+    const oldestKey = CANDIDATE_POOL_CACHE.keys().next().value;
+    if (oldestKey !== undefined) {
+      CANDIDATE_POOL_CACHE.delete(oldestKey);
+    }
+  }
+  CANDIDATE_POOL_CACHE.set(cacheKey, candidates);
   return candidates;
 }
 
@@ -836,120 +885,170 @@ export function generateSampleBuilds(
     ];
   }
 
-  const sortedByPrice = [...candidates].sort((a, b) => a.price - b.price);
+  const sortedByPrice = [...candidates].sort((a, b) => a.price - b.price || a.score - b.score);
   const userBudget = Math.max(15000, prefs.budget);
   const withinBudget = candidates.filter((c) => c.price <= userBudget);
-  const rawPool = withinBudget.length > 0 ? withinBudget : sortedByPrice.slice(0, 5);
+
+  // Fiyat verisi henüz yoksa (tümü 0 TL) veya bütçe en ucuz sistemin altındaysa:
+  // Yine de 3 farklı ekran kartlı / işlemcili sistemi artan fiyat & performans sırasıyla döndür.
+  const allZeroPrices = sortedByPrice[sortedByPrice.length - 1]?.price === 0;
+  if (allZeroPrices) {
+    const byScoreAsc = [...candidates].sort((a, b) => a.score - b.score);
+    const distinctGpu: CandidateBuild[] = [];
+    const seenGpus = new Set<string>();
+    for (const c of byScoreAsc) {
+      if (!seenGpus.has(c.ids.gpuId)) {
+        seenGpus.add(c.ids.gpuId);
+        distinctGpu.push(c);
+      }
+    }
+    const low = distinctGpu[0] ?? byScoreAsc[0];
+    const mid = distinctGpu[Math.floor(distinctGpu.length / 2)] ?? low;
+    const high = distinctGpu[distinctGpu.length - 1] ?? mid;
+    return [
+      assembleBuildFromIds('fiyat-performans', mid.ids, prefs, catalog),
+      assembleBuildFromIds('yuksek-performans', high.ids, prefs, catalog),
+      assembleBuildFromIds('butce-dostu', low.ids, prefs, catalog),
+    ];
+  }
+
+  if (withinBudget.length === 0) {
+    const balancedCheap =
+      prefs.purpose === 'ofis'
+        ? sortedByPrice
+        : sortedByPrice.filter((c) => Math.abs(c.gpu.tierLevel - c.cpu.tierLevel) <= 1);
+    const cheapSource = balancedCheap.length >= 3 ? balancedCheap : sortedByPrice;
+
+    const distinctCheapest: CandidateBuild[] = [];
+    const seenGpus = new Set<string>();
+    for (const c of cheapSource) {
+      if (!seenGpus.has(c.ids.gpuId)) {
+        seenGpus.add(c.ids.gpuId);
+        distinctCheapest.push(c);
+        if (distinctCheapest.length >= 3) break;
+      }
+    }
+    while (distinctCheapest.length < 3 && cheapSource.length > distinctCheapest.length) {
+      const next = cheapSource.find((c) => !distinctCheapest.includes(c));
+      if (!next) break;
+      distinctCheapest.push(next);
+    }
+
+    const low = distinctCheapest[0] ?? sortedByPrice[0];
+    const mid = distinctCheapest[1] ?? low;
+    const high = distinctCheapest[2] ?? mid;
+    return [
+      assembleBuildFromIds('fiyat-performans', mid.ids, prefs, catalog),
+      assembleBuildFromIds('yuksek-performans', high.ids, prefs, catalog),
+      assembleBuildFromIds('butce-dostu', low.ids, prefs, catalog),
+    ];
+  }
+
   const balancedPool =
     prefs.purpose === 'ofis'
-      ? rawPool
-      : rawPool.filter((c) => Math.abs(c.gpu.tierLevel - c.cpu.tierLevel) <= 1);
-  const pool = balancedPool.length >= 3 ? balancedPool : rawPool;
+      ? withinBudget
+      : withinBudget.filter((c) => Math.abs(c.gpu.tierLevel - c.cpu.tierLevel) <= 1);
+  const pool = balancedPool.length >= 3 ? balancedPool : withinBudget;
+
+  const poolByPriceAsc = [...pool].sort((a, b) => a.price - b.price);
+  const minPoolPrice = poolByPriceAsc[0].price;
 
   // 1. En Yüksek Performans (Bütçe dahilindeki en yüksek skorlu dengeli sistem)
   const maxPerfCandidate = [...pool].sort(
     (a, b) => b.score - a.score || b.price - a.price
   )[0];
+  const ceiling = maxPerfCandidate.price;
+  const priceSpan = Math.max(0, ceiling - minPoolPrice);
 
-  // 2. Bütçe Dostu (Ekonomik alt bant — En Yüksek Performans'tan belirgin biçimde ucuz)
-  const budgetUpper = Math.min(
-    maxPerfCandidate.price - 3000,
-    Math.max(sortedByPrice[0]?.price ?? userBudget, userBudget * 0.72)
+  // 2. En İyi Fiyat / Performans (Seçilen bütçenin ~%80-%88 bandını hedefleyen yüksek verimli sistem)
+  const minGap = Math.min(2000, Math.round(priceSpan * 0.12));
+  const rawMidTarget = Math.min(
+    ceiling - minGap,
+    Math.max(minPoolPrice + priceSpan * 0.45, userBudget * 0.84)
   );
-  const budgetEfficiency = (c: CandidateBuild) =>
-    c.score / Math.pow(Math.max(10000, c.price), 0.55);
+  const targetMid = Math.max(minPoolPrice, Math.min(ceiling, rawMidTarget));
 
-  const budgetDistinctPool = pool.filter(
-    (c) =>
-      c.price <= budgetUpper &&
-      c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
-      c.ids.cpuId !== maxPerfCandidate.ids.cpuId
-  );
-  const budgetDistinctGpuPool = pool.filter(
-    (c) => c.price <= budgetUpper && c.ids.gpuId !== maxPerfCandidate.ids.gpuId
-  );
-  const budgetFallbackPool = pool.filter((c) => c.price < maxPerfCandidate.price);
-  const budgetCandidate =
-    budgetDistinctPool.length > 0
-      ? [...budgetDistinctPool].sort(
-          (a, b) => budgetEfficiency(b) - budgetEfficiency(a) || a.price - b.price
-        )[0]
-      : budgetDistinctGpuPool.length > 0
-        ? [...budgetDistinctGpuPool].sort(
-            (a, b) => budgetEfficiency(b) - budgetEfficiency(a) || a.price - b.price
-          )[0]
-        : budgetFallbackPool.length > 0
-          ? [...budgetFallbackPool].sort((a, b) => a.price - b.price)[0]
-          : [...pool].sort((a, b) => a.price - b.price)[0];
-
-  // 3. En İyi Fiyat / Performans (Bütçe Dostu ile En Yüksek Performans arasında yer alan ve Bütçe Dostu'ndan daha yüksek performanslı sistem)
-  const midLow = Math.min(maxPerfCandidate.price, budgetCandidate.price + 500);
-  const midHigh = Math.max(midLow, maxPerfCandidate.price - 500);
-
-  const valueScore = (c: CandidateBuild) =>
-    c.score / Math.pow(Math.max(10000, c.price), 0.35);
+  const rankForTarget = (c: CandidateBuild, targetPrice: number, steepness: number) => {
+    const scale = Math.max(7500, targetPrice * 0.35);
+    const distRatio = Math.abs(c.price - targetPrice) / scale;
+    return c.score / (1 + Math.pow(distRatio * steepness, 2));
+  };
 
   const midBothDistinctPool = pool.filter(
     (c) =>
-      c.price >= midLow &&
-      c.price <= midHigh &&
-      c.score >= budgetCandidate.score &&
+      c.price < ceiling - Math.min(500, minGap) &&
       c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
-      c.ids.gpuId !== budgetCandidate.ids.gpuId &&
       c.ids.cpuId !== maxPerfCandidate.ids.cpuId
   );
   const midGpuDistinctPool = pool.filter(
     (c) =>
-      c.price >= midLow &&
-      c.price <= midHigh &&
-      c.score >= budgetCandidate.score &&
-      c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
-      c.ids.gpuId !== budgetCandidate.ids.gpuId
+      c.price < ceiling - Math.min(500, minGap) &&
+      c.ids.gpuId !== maxPerfCandidate.ids.gpuId
   );
-  const midAnyGpuPool = pool.filter(
+  const midAnyDistinctPool = pool.filter(
     (c) =>
-      c.price >= midLow &&
-      c.price <= midHigh &&
-      c.score >= budgetCandidate.score &&
+      c.price <= ceiling &&
       (c.ids.gpuId !== maxPerfCandidate.ids.gpuId ||
-        c.ids.cpuId !== maxPerfCandidate.ids.cpuId) &&
-      (c.ids.gpuId !== budgetCandidate.ids.gpuId ||
-        c.ids.cpuId !== budgetCandidate.ids.cpuId)
+        c.ids.cpuId !== maxPerfCandidate.ids.cpuId)
   );
 
-  let pricePerfCandidate =
+  const midSource =
     midBothDistinctPool.length > 0
-      ? [...midBothDistinctPool].sort((a, b) => valueScore(b) - valueScore(a))[0]
+      ? midBothDistinctPool
       : midGpuDistinctPool.length > 0
-        ? [...midGpuDistinctPool].sort((a, b) => valueScore(b) - valueScore(a))[0]
-        : midAnyGpuPool.length > 0
-          ? [...midAnyGpuPool].sort((a, b) => valueScore(b) - valueScore(a))[0]
-          : undefined;
+        ? midGpuDistinctPool
+        : midAnyDistinctPool.length > 0
+          ? midAnyDistinctPool
+          : pool;
 
-  if (!pricePerfCandidate) {
-    const anyDistinctUnderMax = pool.filter(
-      (c) =>
-        c.price <= maxPerfCandidate.price &&
-        c.score >= budgetCandidate.score &&
-        c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
-        c.ids.gpuId !== budgetCandidate.ids.gpuId
-    );
-    const anyDistinctPool = pool.filter(
-      (c) =>
-        c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
-        c.ids.gpuId !== budgetCandidate.ids.gpuId
-    );
-    pricePerfCandidate =
-      anyDistinctUnderMax.length > 0
-        ? [...anyDistinctUnderMax].sort((a, b) => valueScore(b) - valueScore(a))[0]
-        : anyDistinctPool.length > 0
-          ? [...anyDistinctPool].sort((a, b) => valueScore(b) - valueScore(a))[0]
-          : pool.find(
-              (c) =>
-                c.ids.cpuId !== maxPerfCandidate.ids.cpuId ||
-                c.ids.gpuId !== maxPerfCandidate.ids.gpuId
-            ) ?? maxPerfCandidate;
-  }
+  const pricePerfCandidate = [...midSource].sort(
+    (a, b) => rankForTarget(b, targetMid, 1.35) - rankForTarget(a, targetMid, 1.35)
+  )[0];
+
+  // 3. Bütçe Dostu (Seçilen bütçenin ~%60-%72 bandında, Fiyat/Performans'tan belirgin biçimde ucuz)
+  const rawLowTarget = Math.min(
+    pricePerfCandidate.price - Math.min(2000, Math.round(priceSpan * 0.15)),
+    Math.max(minPoolPrice, userBudget * 0.65)
+  );
+  const targetLow = Math.max(minPoolPrice, Math.min(pricePerfCandidate.price, rawLowTarget));
+
+  const budgetBothDistinctPool = pool.filter(
+    (c) =>
+      c.price < pricePerfCandidate.price &&
+      c.score <= pricePerfCandidate.score + 2 &&
+      c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
+      c.ids.gpuId !== pricePerfCandidate.ids.gpuId &&
+      c.ids.cpuId !== maxPerfCandidate.ids.cpuId &&
+      c.ids.cpuId !== pricePerfCandidate.ids.cpuId
+  );
+  const budgetGpuDistinctPool = pool.filter(
+    (c) =>
+      c.price < pricePerfCandidate.price &&
+      c.ids.gpuId !== maxPerfCandidate.ids.gpuId &&
+      c.ids.gpuId !== pricePerfCandidate.ids.gpuId
+  );
+  const budgetAnyDistinctPool = pool.filter(
+    (c) =>
+      c.price < pricePerfCandidate.price &&
+      (c.ids.gpuId !== pricePerfCandidate.ids.gpuId ||
+        c.ids.cpuId !== pricePerfCandidate.ids.cpuId)
+  );
+  const budgetFallbackPool = pool.filter((c) => c.price < pricePerfCandidate.price);
+
+  const budgetSource =
+    budgetBothDistinctPool.length > 0
+      ? budgetBothDistinctPool
+      : budgetGpuDistinctPool.length > 0
+        ? budgetGpuDistinctPool
+        : budgetAnyDistinctPool.length > 0
+          ? budgetAnyDistinctPool
+          : budgetFallbackPool.length > 0
+            ? budgetFallbackPool
+            : poolByPriceAsc;
+
+  const budgetCandidate = [...budgetSource].sort(
+    (a, b) => rankForTarget(b, targetLow, 1.5) - rankForTarget(a, targetLow, 1.5)
+  )[0];
 
   return [
     assembleBuildFromIds('fiyat-performans', pricePerfCandidate.ids, prefs, catalog),

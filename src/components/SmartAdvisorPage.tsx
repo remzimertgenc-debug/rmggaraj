@@ -81,11 +81,9 @@ export function SmartAdvisorPage({
     isGamingPurpose || (prefs.purpose === 'tasarim' && includeGamesInDesign);
 
   const updatePrefs = (updater: (prev: BuilderPreferences) => BuilderPreferences) => {
-    setPrefs((prev) => {
-      const next = updater(prev);
-      onUpdatePreferences(next);
-      return next;
-    });
+    const next = updater(prefs);
+    setPrefs(next);
+    onUpdatePreferences(next);
   };
 
   const handleBudgetNumericChange = (rawValue: string) => {
@@ -327,8 +325,8 @@ export function SmartAdvisorPage({
               </div>
 
               {/* Resolution & Brand row */}
-              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div className="sm:col-span-3">
+              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
                   <p className="mb-2 text-xs font-semibold text-slate-300">
                     Monitör Çözünürlüğü (FPS hesabı bu çözünürlüğe göre yapılır)
                   </p>
@@ -405,17 +403,6 @@ export function SmartAdvisorPage({
                       </option>
                     ))}
                   </select>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    type="button"
-                    onClick={scrollToResults}
-                    className="flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8E29] whitespace-nowrap"
-                  >
-                    <span>Önerileri ve FPS&apos;i Gör</span>
-                    <ArrowRight className="h-4 w-4 shrink-0" />
-                  </button>
                 </div>
               </div>
             </div>
@@ -552,6 +539,41 @@ export function SmartAdvisorPage({
                 )}
               </div>
             )}
+
+            {/* Action bar directly under Step 3 */}
+            <div className="mt-6 flex flex-col items-stretch justify-between gap-4 border-t border-slate-700/60 pt-5 sm:flex-row sm:items-center">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-slate-300">
+                <span className="font-semibold text-slate-100">Seçimin:</span>
+                <span className="font-mono font-bold text-[#FF7900] tabular-nums">
+                  {formatTry(prefs.budget)}
+                </span>
+                <span aria-hidden="true" className="text-slate-600">
+                  ·
+                </span>
+                <span>{purposeTitle}</span>
+                <span aria-hidden="true" className="text-slate-600">
+                  ·
+                </span>
+                <span className="font-mono">{prefs.resolution.toUpperCase()}</span>
+                {showGameSelector && (
+                  <>
+                    <span aria-hidden="true" className="text-slate-600">
+                      ·
+                    </span>
+                    <span>{prefs.favoriteGames.length} oyun</span>
+                  </>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={scrollToResults}
+                className="inline-flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-6 py-2.5 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8E29] whitespace-nowrap"
+              >
+                <span>Önerileri ve FPS&apos;i Göster</span>
+                <ArrowRight className="h-4 w-4 shrink-0" />
+              </button>
+            </div>
           </div>
         </section>
 
