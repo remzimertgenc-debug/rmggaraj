@@ -1,25 +1,11 @@
 import 'dotenv/config';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { testDatabaseConnection } from '../../src/db/index.ts';
+import {
+  logSafeDatabaseDiagnostic,
+  testDatabaseConnection,
+} from '../../src/db/index.ts';
 
 const DATABASE_HEALTH_TIMEOUT_MS = 5000;
-
-async function checkDatabaseWithTimeout(): Promise<boolean> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  try {
-    const result = await Promise.race([
-      testDatabaseConnection(),
-      new Promise<{ ok: false }>((resolve) => {
-        timer = setTimeout(() => resolve({ ok: false }), DATABASE_HEALTH_TIMEOUT_MS);
-      }),
-    ]);
-    return Boolean(result?.ok);
-  } catch {
-    return false;
-  } finally {
-    if (timer) clearTimeout(timer);
-  }
-}
 
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -31,13 +17,28 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     return;
   }
 
-  const connected = await checkDatabaseWithTimeout();
-  if (connected) {
-    res.statusCode = 200;
-    res.end(JSON.stringify({ ok: true, database: 'connected' }));
-    return;
-  }
+  try {
+    const result = await testDatabaseConnection({
+      timeoutMs: DATABASE_HEALTH_TIMEOUT_MS,
+    });
 
-  res.statusCode = 503;
-  res.end(JSON.stringify({ ok: false, database: 'disconnected' }));
+    if (result.ok) {
+      res.statusCode = 200;
+      res.end(JSON.stringify({ ok: true, database: 'connected' }));
+      return;
+    }
+
+    logSafeDatabaseDiagnostic(result.diagnostic);
+    res.statusCode = 503;
+    res.end(JSON.stringify({ ok: false, database: 'disconnected' }));
+  } catch {
+    console.error('[DB Health] PostgreSQL connection check failed:', {
+      ok: false,
+      category: 'OTHER_CONNECTION_ERROR',
+      errorCode: 'HANDLER_EXCEPTION',
+      vercel: Boolean(process.env.VERCEL),
+    });
+    res.statusCode = 503;
+    res.end(JSON.stringify({ ok: false, database: 'disconnected' }));
+  }
 }

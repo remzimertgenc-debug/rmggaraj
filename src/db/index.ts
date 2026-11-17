@@ -14,6 +14,36 @@ type ConnectionSource =
   | 'SQL_HOST'
   | 'none';
 
+export type DatabaseErrorCategory =
+  | 'DATABASE_URL_MISSING'
+  | 'INVALID_DATABASE_URL'
+  | 'DNS_ERROR'
+  | 'CONNECTION_TIMEOUT'
+  | 'POSTGRES_AUTH_ERROR'
+  | 'SSL_TLS_ERROR'
+  | 'OTHER_CONNECTION_ERROR';
+
+export interface DatabaseDiagnosticSummary {
+  ok: boolean;
+  source: ConnectionSource;
+  category: DatabaseErrorCategory | null;
+  errorCode: string | null;
+  hasDatabaseUrl: boolean;
+  hasPostgresUrl: boolean;
+  hasDirectUrl: boolean;
+  invalidSources: ConnectionSource[];
+  sslEnabled: boolean;
+  vercel: boolean;
+}
+
+export interface DatabaseConnectionTestResult {
+  ok: boolean;
+  source: ConnectionSource;
+  category?: DatabaseErrorCategory;
+  errorCode?: string;
+  diagnostic: DatabaseDiagnosticSummary;
+}
+
 interface ResolvedPoolTarget {
   source: ConnectionSource;
   poolConfig: PoolConfig;
@@ -23,7 +53,29 @@ interface ResolvedPoolTarget {
   sslEnabled: boolean;
 }
 
+interface PoolResolutionState {
+  target: ResolvedPoolTarget | null;
+  invalidSources: ConnectionSource[];
+  hasDatabaseUrl: boolean;
+  hasPostgresUrl: boolean;
+  hasDirectUrl: boolean;
+}
+
 const PLACEHOLDER_HOSTS = new Set(['host', 'your-host', 'example.com', 'localhost.example']);
+const SAFE_CODE_PATTERN = /^[A-Z0-9_]{2,40}$/;
+
+function sanitizeEnvUrlValue(rawValue: string | undefined): string {
+  if (!rawValue) return '';
+  let cleaned = rawValue.trim();
+  while (
+    cleaned.length >= 2 &&
+    ((cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+      (cleaned.startsWith("'") && cleaned.endsWith("'")))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  return cleaned.replace(/^['"]+|['"]+$/g, '').trim();
+}
 
 function isLocalHost(host: string): boolean {
   const lower = host.trim().toLowerCase();
@@ -108,63 +160,202 @@ function parseConnectionUrl(
   }
 }
 
-function resolvePoolTarget(): ResolvedPoolTarget | null {
+function resolvePoolTarget(): PoolResolutionState {
+  const cleanedDatabaseUrl = sanitizeEnvUrlValue(process.env.DATABASE_URL);
+  const cleanedPostgresUrl = sanitizeEnvUrlValue(process.env.POSTGRES_URL);
+  const cleanedPostgresPrismaUrl = sanitizeEnvUrlValue(process.env.POSTGRES_PRISMA_URL);
+  const cleanedDirectUrl = sanitizeEnvUrlValue(process.env.DIRECT_URL);
+
   const urlCandidates: Array<{
     source: Exclude<ConnectionSource, 'SQL_HOST' | 'none'>;
-    value: string | undefined;
+    value: string;
   }> = [
-    { source: 'DATABASE_URL', value: process.env.DATABASE_URL?.trim() },
-    { source: 'POSTGRES_URL', value: process.env.POSTGRES_URL?.trim() },
-    { source: 'POSTGRES_PRISMA_URL', value: process.env.POSTGRES_PRISMA_URL?.trim() },
+    { source: 'DATABASE_URL', value: cleanedDatabaseUrl },
+    { source: 'POSTGRES_URL', value: cleanedPostgresUrl },
+    { source: 'POSTGRES_PRISMA_URL', value: cleanedPostgresPrismaUrl },
   ];
+
+  const invalidSources: ConnectionSource[] = [];
+  let target: ResolvedPoolTarget | null = null;
 
   for (const candidate of urlCandidates) {
     if (!candidate.value) continue;
     const parsed = parseConnectionUrl(candidate.value, candidate.source);
     if (parsed) {
-      return parsed;
+      target = parsed;
+      break;
     }
-    console.warn(
-      `[DB] ${candidate.source} geçersiz veya eksik PostgreSQL bağlantı adresi içeriyor.`
-    );
+    invalidSources.push(candidate.source);
+    console.warn(`[DB] ${candidate.source} geçersiz PostgreSQL bağlantı adresi içeriyor.`);
   }
 
-  const sqlHost = process.env.SQL_HOST?.trim();
-  const sqlDbName = process.env.SQL_DB_NAME?.trim();
-  if (sqlHost && sqlDbName && !PLACEHOLDER_HOSTS.has(sqlHost.toLowerCase())) {
-    const port = process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432;
-    const ssl = resolveSslOption(sqlHost, null);
-    const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
-    const defaultMax = isServerless || port === 6543 ? 3 : 5;
-    const configuredMax = Number(process.env.DB_POOL_MAX);
-    const max =
-      Number.isInteger(configuredMax) && configuredMax > 0 ? configuredMax : defaultMax;
+  if (!target) {
+    const sqlHost = sanitizeEnvUrlValue(process.env.SQL_HOST);
+    const sqlDbName = sanitizeEnvUrlValue(process.env.SQL_DB_NAME);
+    if (sqlHost && sqlDbName && !PLACEHOLDER_HOSTS.has(sqlHost.toLowerCase())) {
+      const port = process.env.SQL_PORT ? Number(process.env.SQL_PORT) : 5432;
+      const ssl = resolveSslOption(sqlHost, null);
+      const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+      const defaultMax = isServerless || port === 6543 ? 3 : 5;
+      const configuredMax = Number(process.env.DB_POOL_MAX);
+      const max =
+        Number.isInteger(configuredMax) && configuredMax > 0 ? configuredMax : defaultMax;
 
-    return {
-      source: 'SQL_HOST',
-      poolConfig: {
-        host: sqlHost,
+      target = {
+        source: 'SQL_HOST',
+        poolConfig: {
+          host: sqlHost,
+          port: Number.isInteger(port) && port > 0 ? port : 5432,
+          user: process.env.SQL_USER?.trim() || undefined,
+          password: process.env.SQL_PASSWORD || undefined,
+          database: sqlDbName,
+          ssl,
+          max,
+          idleTimeoutMillis: 10000,
+          connectionTimeoutMillis: 10000,
+          allowExitOnIdle: true,
+        },
+        hostLabel: sqlHost,
         port: Number.isInteger(port) && port > 0 ? port : 5432,
-        user: process.env.SQL_USER?.trim() || undefined,
-        password: process.env.SQL_PASSWORD || undefined,
         database: sqlDbName,
-        ssl,
-        max,
-        idleTimeoutMillis: 10000,
-        connectionTimeoutMillis: 10000,
-        allowExitOnIdle: true,
-      },
-      hostLabel: sqlHost,
-      port: Number.isInteger(port) && port > 0 ? port : 5432,
-      database: sqlDbName,
-      sslEnabled: Boolean(ssl),
-    };
+        sslEnabled: Boolean(ssl),
+      };
+    } else if (sqlHost || sqlDbName) {
+      invalidSources.push('SQL_HOST');
+    }
   }
 
-  return null;
+  return {
+    target,
+    invalidSources,
+    hasDatabaseUrl: Boolean(cleanedDatabaseUrl),
+    hasPostgresUrl: Boolean(cleanedPostgresUrl),
+    hasDirectUrl: Boolean(cleanedDirectUrl),
+  };
 }
 
-const resolvedTarget = resolvePoolTarget();
+function extractErrorSignals(error: unknown): {
+  codes: string[];
+  lowerMessages: string[];
+  errorCode: string;
+} {
+  const codes: string[] = [];
+  const lowerMessages: string[] = [];
+  const visited = new Set<unknown>();
+
+  const collect = (item: unknown) => {
+    if (!item || typeof item !== 'object' || visited.has(item)) return;
+    visited.add(item);
+
+    const record = item as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+      errors?: unknown;
+    };
+
+    if (typeof record.code === 'string' && record.code.trim()) {
+      const normalized = record.code.trim().toUpperCase();
+      if (SAFE_CODE_PATTERN.test(normalized)) {
+        codes.push(normalized);
+      }
+    }
+    if (typeof record.message === 'string' && record.message.trim()) {
+      lowerMessages.push(record.message.toLowerCase());
+    }
+    if (record.cause) {
+      collect(record.cause);
+    }
+    if (Array.isArray(record.errors)) {
+      for (const subError of record.errors) {
+        collect(subError);
+      }
+    }
+  };
+
+  if (typeof error === 'string') {
+    lowerMessages.push(error.toLowerCase());
+  } else {
+    collect(error);
+  }
+
+  return {
+    codes,
+    lowerMessages,
+    errorCode: codes[0] ?? 'UNKNOWN',
+  };
+}
+
+export function classifyDatabaseError(error: unknown): {
+  category: DatabaseErrorCategory;
+  errorCode: string;
+} {
+  const { codes, lowerMessages, errorCode } = extractErrorSignals(error);
+  const combinedMessage = lowerMessages.join(' | ');
+
+  if (
+    codes.some((c) =>
+      ['ENOTFOUND', 'EAI_AGAIN', 'ENODATA', 'EDNSREFUSED', 'ESERVFAIL', 'EAI_NONAME'].includes(c)
+    ) ||
+    combinedMessage.includes('getaddrinfo') ||
+    combinedMessage.includes('enotfound') ||
+    combinedMessage.includes('eai_again')
+  ) {
+    return { category: 'DNS_ERROR', errorCode };
+  }
+
+  if (
+    codes.some(
+      (c) =>
+        c.startsWith('ERR_TLS_') ||
+        c.startsWith('ERR_SSL_') ||
+        [
+          'SELF_SIGNED_CERT_IN_CHAIN',
+          'DEPTH_ZERO_SELF_SIGNED_CERT',
+          'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+          'CERT_HAS_EXPIRED',
+          'UNABLE_TO_GET_ISSUER_CERT',
+          'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+        ].includes(c)
+    ) ||
+    (codes.includes('EPROTO') &&
+      (combinedMessage.includes('ssl') || combinedMessage.includes('tls'))) ||
+    combinedMessage.includes('self-signed certificate') ||
+    combinedMessage.includes('self signed certificate') ||
+    combinedMessage.includes('does not support ssl') ||
+    combinedMessage.includes('no encryption') ||
+    combinedMessage.includes('ssl') ||
+    combinedMessage.includes('tls') ||
+    combinedMessage.includes('certificate')
+  ) {
+    return { category: 'SSL_TLS_ERROR', errorCode };
+  }
+
+  if (
+    codes.some((c) => c === '28P01' || c === '28000') ||
+    combinedMessage.includes('password authentication failed') ||
+    combinedMessage.includes('tenant or user not found') ||
+    combinedMessage.includes('authentication failed') ||
+    combinedMessage.includes('no pg_hba.conf entry')
+  ) {
+    return { category: 'POSTGRES_AUTH_ERROR', errorCode };
+  }
+
+  if (
+    codes.some((c) =>
+      ['ETIMEDOUT', 'ECONNABORTED', 'ESOCKETTIMEDOUT', '57014', 'HEALTH_CHECK_TIMEOUT'].includes(c)
+    ) ||
+    combinedMessage.includes('timeout') ||
+    combinedMessage.includes('timed out')
+  ) {
+    return { category: 'CONNECTION_TIMEOUT', errorCode };
+  }
+
+  return { category: 'OTHER_CONNECTION_ERROR', errorCode };
+}
+
+const resolutionState = resolvePoolTarget();
+const resolvedTarget = resolutionState.target;
 
 export const createPool = () => {
   if (!resolvedTarget) {
@@ -174,7 +365,11 @@ export const createPool = () => {
     global._postgresPool = new Pool(resolvedTarget.poolConfig);
 
     global._postgresPool.on('error', (err) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
+      const classified = classifyDatabaseError(err);
+      console.error('[DB] Idle SQL pool client error:', {
+        category: classified.category,
+        errorCode: classified.errorCode,
+      });
     });
   }
   return global._postgresPool;
@@ -235,28 +430,125 @@ export function getDatabaseConnectionMeta() {
   };
 }
 
-export async function testDatabaseConnection(): Promise<{
+function buildDiagnosticSummary(params: {
   ok: boolean;
   source: ConnectionSource;
-  error?: string;
-}> {
+  category: DatabaseErrorCategory | null;
+  errorCode: string | null;
+}): DatabaseDiagnosticSummary {
+  return {
+    ok: params.ok,
+    source: params.source,
+    category: params.category,
+    errorCode: params.errorCode,
+    hasDatabaseUrl: resolutionState.hasDatabaseUrl,
+    hasPostgresUrl: resolutionState.hasPostgresUrl,
+    hasDirectUrl: resolutionState.hasDirectUrl,
+    invalidSources: resolutionState.invalidSources,
+    sslEnabled: resolvedTarget?.sslEnabled ?? false,
+    vercel: Boolean(process.env.VERCEL),
+  };
+}
+
+export function logSafeDatabaseDiagnostic(summary: DatabaseDiagnosticSummary): void {
+  if (summary.ok) return;
+  console.error('[DB Health] PostgreSQL connection check failed:', summary);
+}
+
+export async function testDatabaseConnection(options?: {
+  timeoutMs?: number;
+}): Promise<DatabaseConnectionTestResult> {
+  const source: ConnectionSource = resolvedTarget?.source ?? 'none';
+
   if (!pool || !isDatabaseConfigured) {
+    const category: DatabaseErrorCategory =
+      resolutionState.invalidSources.length > 0
+        ? 'INVALID_DATABASE_URL'
+        : 'DATABASE_URL_MISSING';
+    const errorCode = category;
     return {
       ok: false,
       source: 'none',
-      error: 'DATABASE_URL veya POSTGRES_URL tanımlı değil.',
+      category,
+      errorCode,
+      diagnostic: buildDiagnosticSummary({
+        ok: false,
+        source: 'none',
+        category,
+        errorCode,
+      }),
     };
   }
-  try {
-    await pool.query('SELECT 1');
-    return { ok: true, source: resolvedTarget?.source ?? 'DATABASE_URL' };
-  } catch (error) {
-    return {
-      ok: false,
-      source: resolvedTarget?.source ?? 'DATABASE_URL',
-      error: error instanceof Error ? error.message : String(error),
-    };
+
+  let settledByTimeout = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const queryPromise = pool
+    .query('SELECT 1')
+    .then((): DatabaseConnectionTestResult => ({
+      ok: true,
+      source,
+      diagnostic: buildDiagnosticSummary({
+        ok: true,
+        source,
+        category: null,
+        errorCode: null,
+      }),
+    }))
+    .catch((error): DatabaseConnectionTestResult => {
+      const classified = classifyDatabaseError(error);
+      if (settledByTimeout) {
+        // 5s health check zaman aşımından sonra havuzun 10s içinde verdiği gerçek hatayı güvenli biçimde logla
+        logSafeDatabaseDiagnostic(
+          buildDiagnosticSummary({
+            ok: false,
+            source,
+            category: classified.category,
+            errorCode: classified.errorCode,
+          })
+        );
+      }
+      return {
+        ok: false,
+        source,
+        category: classified.category,
+        errorCode: classified.errorCode,
+        diagnostic: buildDiagnosticSummary({
+          ok: false,
+          source,
+          category: classified.category,
+          errorCode: classified.errorCode,
+        }),
+      };
+    });
+
+  if (typeof options?.timeoutMs === 'number' && options.timeoutMs > 0) {
+    const timeoutPromise = new Promise<DatabaseConnectionTestResult>((resolve) => {
+      timer = setTimeout(() => {
+        settledByTimeout = true;
+        resolve({
+          ok: false,
+          source,
+          category: 'CONNECTION_TIMEOUT',
+          errorCode: 'HEALTH_CHECK_TIMEOUT',
+          diagnostic: buildDiagnosticSummary({
+            ok: false,
+            source,
+            category: 'CONNECTION_TIMEOUT',
+            errorCode: 'HEALTH_CHECK_TIMEOUT',
+          }),
+        });
+      }, options.timeoutMs);
+    });
+
+    try {
+      return await Promise.race([queryPromise, timeoutPromise]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
+
+  return queryPromise;
 }
 
 export { db };
