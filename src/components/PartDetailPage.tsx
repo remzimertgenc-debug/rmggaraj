@@ -243,7 +243,14 @@ export function PartDetailPage({
   const partListings = useMemo(() => {
     if (!pricingCatalog?.listings) return [];
     return pricingCatalog.listings
-      .filter((listing) => listing.partId === partId && listing.isNew)
+      .filter(
+        (listing) =>
+          listing.partId === partId &&
+          listing.isNew &&
+          !listing.isSimulated &&
+          listing.dataOrigin !== 'synthetic_fallback' &&
+          listing.dataOrigin !== 'synthetic_backfill'
+      )
       .sort((a, b) => a.listingPriceTry - b.listingPriceTry);
   }, [pricingCatalog, partId]);
 
@@ -306,6 +313,10 @@ export function PartDetailPage({
 
   const activePrice = pricing?.newPriceTry ?? null;
   const activeSourceLabel = pricing?.newSourceLabel ?? 'Referans fiyat henüz tanımlanmadı';
+  const isRealStorePrice =
+    pricing?.newSourceType === 'authorized_api' ||
+    pricing?.newSourceType === 'store_feed' ||
+    pricing?.newSourceType === 'user_listings';
 
   const specRows: SpecRow[] = entry
     ? buildSpecRows(entry)
@@ -413,6 +424,15 @@ export function PartDetailPage({
 
             {/* Tabular Price Box */}
             <div className="mt-6 border-y border-slate-800 py-5">
+              <p className="mb-1 text-xs font-semibold tracking-wider text-[#94A3B8]">
+                {isRealStorePrice
+                  ? 'Canlı Mağaza Medyan Fiyatı'
+                  : activePrice && activePrice > 0
+                    ? 'Referans / Tahmini Piyasa Fiyatı'
+                    : isBuiltinZeroCost
+                      ? 'Dahili Bileşen'
+                      : 'Fiyat Durumu'}
+              </p>
               <div className="flex flex-wrap items-baseline justify-between gap-4">
                 <span className="font-mono text-4xl sm:text-5xl font-extrabold tabular-nums tracking-tight text-[#FF7900]">
                   {activePrice && activePrice > 0

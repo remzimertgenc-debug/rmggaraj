@@ -167,6 +167,14 @@ export type MarketplacePlatform =
 
 export type ProductConditionGrade = 'Sıfır / Kapalı Kutu';
 
+export type DataOrigin =
+  | 'store_feed'
+  | 'authorized_api'
+  | 'user_submitted'
+  | 'synthetic_fallback'
+  | 'synthetic_backfill'
+  | 'legacy_unknown';
+
 export interface MarketplaceListing {
   id: string;
   partId: string;
@@ -179,6 +187,8 @@ export interface MarketplaceListing {
   conditionGrade: ProductConditionGrade;
   isNew: boolean;
   lastCheckedAt: string; // ISO string
+  isSimulated?: boolean;
+  dataOrigin?: DataOrigin;
   isSuspiciousOutlier?: boolean;
   outlierReason?: string;
   isOwner?: boolean;
@@ -201,6 +211,7 @@ export interface MarketPriceStats {
 
 export type PriceSourceType =
   | 'authorized_api'
+  | 'store_feed'
   | 'user_listings'
   | 'estimated_reference'
   | 'unavailable';
@@ -235,6 +246,7 @@ export interface DynamicCatalogProduct {
 export interface PricingCatalogResponse {
   providerStatus: {
     authorizedApiConfigured: boolean;
+    syntheticFallbackEnabled?: boolean;
     providerMessage: string;
     lastSyncedAt: string;
   };

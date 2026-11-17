@@ -390,7 +390,10 @@ export function assembleBuildFromIds(
     allNewTotalTry > 0 ? Math.round((bundleSavingsTry / allNewTotalTry) * 100) : 0;
 
   const hasRealListingData = allPricings.some(
-    (p) => p.sourceType === 'authorized_api' || p.sourceType === 'user_listings'
+    (p) =>
+      p.sourceType === 'authorized_api' ||
+      p.sourceType === 'store_feed' ||
+      p.sourceType === 'user_listings'
   );
 
   const compatibility = evaluateCompatibility({
@@ -1294,9 +1297,15 @@ export const SHOWCASE_READY_SYSTEM_PRESETS: ShowcaseReadySystemPreset[] = [
 export interface ShowcaseReadySystemItem {
   preset: ShowcaseReadySystemPreset;
   build: PcBuild;
-  oldPriceTry: number;
-  discountPercent: number;
+  oldPriceTry: number | null;
+  discountPercent: number | null;
 }
+
+const REAL_LISTING_ORIGINS_FOR_SHOWCASE = new Set<PriceSourceType>([
+  'authorized_api',
+  'store_feed',
+  'user_listings',
+]);
 
 export function getShowcaseReadyBuilds(
   catalog: PricingCatalogResponse | null
@@ -1314,10 +1323,42 @@ export function getShowcaseReadyBuilds(
     const assembled = assembleBuildFromIds(preset.tier, preset.ids, prefs, catalog);
     const liveTotal = assembled.samplePriceTry;
     const effectivePrice = liveTotal > 0 ? liveTotal : preset.fallbackPriceTry;
-    const oldPriceTry =
-      liveTotal > 0
-        ? Math.round(liveTotal / (1 - preset.discountPercent / 100))
-        : preset.fallbackOldPriceTry;
+
+    // Yalnızca gerçek çoklu mağaza ilan verisi varsa doğrulanmış eski fiyat ve fark hesapla;
+    // aksi halde yapay indirim yüzdesi veya yapay eski fiyat üretilmez.
+    let oldPriceTry: number | null = null;
+    let discountPercent: number | null = null;
+
+    if (assembled.hasRealListingData && catalog?.partsPricing && effectivePrice > 0) {
+      let hasMultiStoreSpread = false;
+      let storeAverageTotal = 0;
+
+      for (const partId of Object.values(preset.ids)) {
+        const info = catalog.partsPricing[partId];
+        if (
+          info &&
+          REAL_LISTING_ORIGINS_FOR_SHOWCASE.has(info.newSourceType) &&
+          info.newStats &&
+          info.newStats.listingCount >= 2 &&
+          info.newStats.averagePriceTry > info.newStats.minPriceTry
+        ) {
+          hasMultiStoreSpread = true;
+          storeAverageTotal += info.newStats.averagePriceTry;
+        } else {
+          storeAverageTotal += info?.newPriceTry ?? 0;
+        }
+      }
+
+      if (hasMultiStoreSpread && storeAverageTotal > effectivePrice) {
+        const computedPct = Math.round(
+          ((storeAverageTotal - effectivePrice) / storeAverageTotal) * 100
+        );
+        if (computedPct >= 2) {
+          oldPriceTry = Math.round(storeAverageTotal);
+          discountPercent = computedPct;
+        }
+      }
+    }
 
     const build: PcBuild = {
       ...assembled,
@@ -1327,9 +1368,10 @@ export function getShowcaseReadyBuilds(
       tierSubtitle: preset.tierSubtitle,
       image: preset.image,
       samplePriceTry: effectivePrice,
-      allNewTotalTry: oldPriceTry,
-      bundleSavingsTry: Math.max(0, oldPriceTry - effectivePrice),
-      bundleSavingsPercent: preset.discountPercent,
+      allNewTotalTry: oldPriceTry ?? effectivePrice,
+      bundleSavingsTry:
+        oldPriceTry !== null ? Math.max(0, oldPriceTry - effectivePrice) : 0,
+      bundleSavingsPercent: discountPercent ?? 0,
       performanceNote: preset.performanceNote,
     };
 
@@ -1337,7 +1379,7 @@ export function getShowcaseReadyBuilds(
       preset,
       build,
       oldPriceTry,
-      discountPercent: preset.discountPercent,
+      discountPercent,
     };
   });
 }

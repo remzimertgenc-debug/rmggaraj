@@ -22,6 +22,10 @@ export function FeaturedSystemsBand({
     [pricingCatalog]
   );
 
+  const hasAnyRealPricing = readySystems.some(
+    ({ build }) => build.hasRealListingData
+  );
+
   const scrollByCard = (direction: 'left' | 'right') => {
     const el = scrollerRef.current;
     if (!el) return;
@@ -36,13 +40,15 @@ export function FeaturedSystemsBand({
       <div className="flex flex-col justify-between gap-4 pb-7 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#FF7900]">
-            Hazır Toplanmış Kasalar
+            Hazır Sistem Önerileri
           </p>
           <h2 className="mt-1.5 font-display text-2xl font-extrabold tracking-tight text-slate-50 sm:text-3xl">
-            Çok Satan Hazır Sistemler
+            Öne Çıkan Sistem Konfigürasyonları
           </h2>
           <p className="mt-1.5 text-sm text-slate-400">
-            Uyumluluğu doğrulanmış, oyun ve üretim odaklı en çok tercih edilen hazır bilgisayar modelleri.
+            {hasAnyRealPricing
+              ? 'Uyumluluğu doğrulanmış, oyun ve üretim odaklı sistem konfigürasyonları.'
+              : 'Uyumluluğu doğrulanmış sistem konfigürasyonları · Fiyatlar canlı mağaza verisi gelene kadar referans tahmini olarak gösterilir.'}
           </p>
         </div>
 
@@ -97,7 +103,9 @@ export function FeaturedSystemsBand({
               key={preset.id}
               build={build}
               variant="compact"
-              badgeText={preset.badgeText}
+              badgeText={
+                build.hasRealListingData ? preset.badgeText : 'Referans Tahmini'
+              }
               compactSummary={summaryLine}
               onInspect={onInspectBuild}
               className="w-[calc(50%-6px)] min-w-[160px] shrink-0 snap-start sm:w-[295px]"

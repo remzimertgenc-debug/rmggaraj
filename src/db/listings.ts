@@ -1,13 +1,83 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, notInArray } from 'drizzle-orm';
 import fs from 'node:fs';
 import path from 'node:path';
 import type {
+  DataOrigin,
   MarketplaceListing,
   MarketplacePlatform,
   ProductConditionGrade,
 } from '../types/pc.ts';
 import { db, handleDatabaseQueryFailure, isDatabaseConfigured } from './index.ts';
 import { listings, priceLogs } from './schema.ts';
+
+export const VALID_DATA_ORIGINS: readonly DataOrigin[] = [
+  'store_feed',
+  'authorized_api',
+  'user_submitted',
+  'synthetic_fallback',
+  'synthetic_backfill',
+  'legacy_unknown',
+] as const;
+
+const VALID_DATA_ORIGIN_SET = new Set<DataOrigin>(VALID_DATA_ORIGINS);
+
+const SYNTHETIC_BOT_URL_PREFIXES = [
+  'https://www.vatanbilgisayar.com/arama/',
+  'https://www.itopya.com/arama?q=',
+  'https://www.sinerji.gen.tr/arama?q=',
+  'https://www.trendyol.com/sr?q=',
+  'https://www.incehesap.com/q/',
+  'https://www.gaming.gen.tr/?s=',
+  'https://www.hepsiburada.com/ara?q=',
+  'https://www.amazon.com.tr/s?k=',
+];
+
+export function isSyntheticFallbackAllowed(): boolean {
+  return process.env.ALLOW_SYNTHETIC_FALLBACK?.trim().toLowerCase() === 'true';
+}
+
+export function normalizeDataOrigin(raw: string | null | undefined): DataOrigin {
+  if (raw && VALID_DATA_ORIGIN_SET.has(raw as DataOrigin)) {
+    return raw as DataOrigin;
+  }
+  return 'legacy_unknown';
+}
+
+export function isSyntheticOrigin(origin: DataOrigin): boolean {
+  return origin === 'synthetic_fallback' || origin === 'synthetic_backfill';
+}
+
+function matchesSyntheticBotSearchUrl(url: string): boolean {
+  const trimmed = url.trim();
+  if (trimmed.startsWith('https://www.gaming.gen.tr/?s=')) {
+    return trimmed.includes('&post_type=product');
+  }
+  return SYNTHETIC_BOT_URL_PREFIXES.some((prefix) => trimmed.startsWith(prefix));
+}
+
+function classifyLegacyListingProvenance(row: {
+  userId: number | null;
+  listingUrl: string;
+}): { isSimulated: boolean; dataOrigin: DataOrigin } {
+  if (row.userId !== null) {
+    return { isSimulated: false, dataOrigin: 'user_submitted' };
+  }
+  if (matchesSyntheticBotSearchUrl(row.listingUrl)) {
+    return { isSimulated: true, dataOrigin: 'synthetic_fallback' };
+  }
+  return { isSimulated: false, dataOrigin: 'legacy_unknown' };
+}
+
+function isUndefinedColumnError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  if ((error as { code?: unknown }).code === '42703') return true;
+  const cause = (error as { cause?: unknown }).cause;
+  return Boolean(
+    cause &&
+      typeof cause === 'object' &&
+      (cause as { code?: unknown }).code === '42703'
+  );
+}
 
 export interface DbCreateListingParams {
   userId: number;
@@ -39,6 +109,8 @@ interface MemoryListingRecord {
   listingDate: string;
   conditionGrade: string;
   isNew: boolean;
+  isSimulated: boolean;
+  dataOrigin: DataOrigin;
   lastCheckedAt: Date;
   createdAt: Date;
 }
@@ -50,6 +122,8 @@ interface MemoryPriceLogRecord {
   platform: string | null;
   priceTry: number;
   isNew: boolean;
+  isSimulated: boolean;
+  dataOrigin: DataOrigin;
   recordedAt: Date;
 }
 
@@ -77,6 +151,8 @@ function ensureMemorySeeded() {
         listingDate?: string;
         conditionGrade?: string;
         isNew?: boolean;
+        isSimulated?: boolean;
+        dataOrigin?: string;
         lastCheckedAt?: string;
       }>;
       if (Array.isArray(parsed)) {
@@ -84,6 +160,8 @@ function ensureMemorySeeded() {
           if (!item.partId || !item.listingPriceTry || !item.isNew) continue;
           const id = nextMemoryListingId++;
           const checkedAt = item.lastCheckedAt ? new Date(item.lastCheckedAt) : new Date();
+          const dataOrigin = normalizeDataOrigin(item.dataOrigin);
+          const isSimulated = Boolean(item.isSimulated) || isSyntheticOrigin(dataOrigin);
           memoryListings.push({
             id,
             userId: null,
@@ -91,11 +169,13 @@ function ensureMemorySeeded() {
             productName: item.productName || item.partId,
             brandModel: item.brandModel || item.productName || item.partId,
             platform: item.platform || 'Yetkili Sağlayıcı',
-            listingUrl: item.listingUrl || 'https://www.vatanbilgisayar.com',
+            listingUrl: item.listingUrl || '',
             listingPriceTry: Math.round(item.listingPriceTry),
             listingDate: item.listingDate || checkedAt.toISOString().slice(0, 10),
             conditionGrade: 'Sıfır / Kapalı Kutu',
             isNew: true,
+            isSimulated,
+            dataOrigin,
             lastCheckedAt: checkedAt,
             createdAt: checkedAt,
           });
@@ -106,6 +186,8 @@ function ensureMemorySeeded() {
             platform: item.platform || 'Yetkili Sağlayıcı',
             priceTry: Math.round(item.listingPriceTry),
             isNew: true,
+            isSimulated,
+            dataOrigin,
             recordedAt: checkedAt,
           });
         }
@@ -117,9 +199,27 @@ function ensureMemorySeeded() {
 }
 
 function mapRowToMarketplaceListing(
-  row: typeof listings.$inferSelect | MemoryListingRecord,
+  row: {
+    id: number;
+    userId: number | null;
+    partId: string;
+    productName: string;
+    brandModel: string;
+    platform: string;
+    listingUrl: string;
+    listingPriceTry: number;
+    listingDate: string;
+    conditionGrade: string;
+    isNew: boolean;
+    isSimulated?: boolean;
+    dataOrigin?: string | null;
+    lastCheckedAt: Date;
+  },
   requestingUserId?: number
 ): MarketplaceListing {
+  const dataOrigin = normalizeDataOrigin(row.dataOrigin);
+  const isSimulated = Boolean(row.isSimulated) || isSyntheticOrigin(dataOrigin);
+
   return {
     id: String(row.id),
     partId: row.partId,
@@ -132,6 +232,8 @@ function mapRowToMarketplaceListing(
     conditionGrade: row.conditionGrade as ProductConditionGrade,
     isNew: row.isNew,
     lastCheckedAt: row.lastCheckedAt.toISOString(),
+    isSimulated,
+    dataOrigin,
     isOwner:
       requestingUserId !== undefined
         ? row.userId !== null && row.userId === requestingUserId
@@ -139,10 +241,17 @@ function mapRowToMarketplaceListing(
   };
 }
 
-function getMemoryListings(requestingUserId?: number): MarketplaceListing[] {
+function getMemoryListings(
+  requestingUserId?: number,
+  includeSimulated = false
+): MarketplaceListing[] {
   ensureMemorySeeded();
   return [...memoryListings]
-    .filter((r) => r.isNew)
+    .filter(
+      (r) =>
+        r.isNew &&
+        (includeSimulated || (!r.isSimulated && !isSyntheticOrigin(r.dataOrigin)))
+    )
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || b.id - a.id)
     .map((r) => mapRowToMarketplaceListing(r, requestingUserId));
 }
@@ -162,6 +271,8 @@ function createMemoryListing(input: DbCreateListingParams): MarketplaceListing {
     listingDate: input.listingDate,
     conditionGrade: input.conditionGrade,
     isNew: input.isNew,
+    isSimulated: false,
+    dataOrigin: 'user_submitted',
     lastCheckedAt: now,
     createdAt: now,
   };
@@ -173,6 +284,8 @@ function createMemoryListing(input: DbCreateListingParams): MarketplaceListing {
     platform: input.platform,
     priceTry: created.listingPriceTry,
     isNew: created.isNew,
+    isSimulated: false,
+    dataOrigin: 'user_submitted',
     recordedAt: now,
   });
   return mapRowToMarketplaceListing(created, input.userId);
@@ -199,11 +312,18 @@ function deleteMemoryListing(
 
 function getMemoryPartPriceHistory(
   partId: string,
-  isNew?: boolean
+  isNew?: boolean,
+  includeSimulated = false
 ): PriceHistoryPoint[] {
   ensureMemorySeeded();
   return memoryPriceLogs
-    .filter((log) => log.partId === partId && (isNew === undefined || log.isNew === isNew))
+    .filter(
+      (log) =>
+        log.partId === partId &&
+        (isNew === undefined || log.isNew === isNew) &&
+        (includeSimulated ||
+          (!log.isSimulated && !isSyntheticOrigin(log.dataOrigin)))
+    )
     .sort((a, b) => a.recordedAt.getTime() - b.recordedAt.getTime() || a.id - b.id)
     .map((r) => ({
       date: r.recordedAt.toLocaleDateString('tr-TR', {
@@ -216,8 +336,17 @@ function getMemoryPartPriceHistory(
 
 function upsertMemoryStoreBotListing(
   input: UpsertStoreBotListingInput
-): { action: 'created' | 'updated'; listingId: number } {
+): { action: 'created' | 'updated' | 'skipped'; listingId: number } {
   ensureMemorySeeded();
+  const dataOrigin = normalizeDataOrigin(
+    input.dataOrigin ?? (input.isSimulated ? 'synthetic_fallback' : 'store_feed')
+  );
+  const isSimulated = Boolean(input.isSimulated) || isSyntheticOrigin(dataOrigin);
+
+  if (isSimulated && !isSyntheticFallbackAllowed()) {
+    return { action: 'skipped', listingId: 0 };
+  }
+
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const roundedPrice = Math.round(input.listingPriceTry);
@@ -229,6 +358,9 @@ function upsertMemoryStoreBotListing(
   let action: 'created' | 'updated';
 
   if (existing) {
+    if (!existing.isSimulated && isSimulated) {
+      return { action: 'skipped', listingId: existing.id };
+    }
     existing.productName = input.productName;
     existing.brandModel = input.brandModel;
     existing.listingUrl = input.listingUrl;
@@ -236,6 +368,8 @@ function upsertMemoryStoreBotListing(
     existing.listingDate = today;
     existing.conditionGrade = 'Sıfır / Kapalı Kutu';
     existing.isNew = true;
+    existing.isSimulated = isSimulated;
+    existing.dataOrigin = dataOrigin;
     existing.lastCheckedAt = now;
     listingId = existing.id;
     action = 'updated';
@@ -253,34 +387,14 @@ function upsertMemoryStoreBotListing(
       listingDate: today,
       conditionGrade: 'Sıfır / Kapalı Kutu',
       isNew: true,
+      isSimulated,
+      dataOrigin,
       lastCheckedAt: now,
       createdAt: now,
     };
     memoryListings.push(record);
     memoryListingIndex.set(indexKey, record);
     action = 'created';
-
-    // İlk kayıt sırasında parça fiyat grafiğinde anlamlı 30 günlük trend oluşması için referans geçmiş noktaları
-    const hasHistory = memoryPriceLogs.some((log) => log.partId === input.partId);
-    if (!hasHistory) {
-      const historyMultipliers = [
-        { daysAgo: 28, factor: 1.04 },
-        { daysAgo: 18, factor: 1.02 },
-        { daysAgo: 9, factor: 1.01 },
-      ];
-      for (const point of historyMultipliers) {
-        const pastDate = new Date(now.getTime() - point.daysAgo * 24 * 60 * 60 * 1000);
-        memoryPriceLogs.push({
-          id: nextMemoryLogId++,
-          partId: input.partId,
-          listingId,
-          platform: input.storeName,
-          priceTry: Math.round((roundedPrice * point.factor) / 50) * 50,
-          isNew: true,
-          recordedAt: pastDate,
-        });
-      }
-    }
   }
 
   memoryPriceLogs.push({
@@ -290,6 +404,8 @@ function upsertMemoryStoreBotListing(
     platform: input.storeName,
     priceTry: roundedPrice,
     isNew: true,
+    isSimulated,
+    dataOrigin,
     recordedAt: now,
   });
 
@@ -297,22 +413,68 @@ function upsertMemoryStoreBotListing(
 }
 
 export async function getDatabaseListings(
-  requestingUserId?: number
+  requestingUserId?: number,
+  options?: { includeSimulated?: boolean }
 ): Promise<MarketplaceListing[]> {
+  const includeSimulated = options?.includeSimulated ?? false;
+
   if (!isDatabaseConfigured) {
-    return getMemoryListings(requestingUserId);
+    return getMemoryListings(requestingUserId, includeSimulated);
   }
 
   try {
+    const condition = includeSimulated
+      ? eq(listings.isNew, true)
+      : and(
+          eq(listings.isNew, true),
+          eq(listings.isSimulated, false),
+          notInArray(listings.dataOrigin, ['synthetic_fallback', 'synthetic_backfill'])
+        );
+
     const rows = await db
       .select()
       .from(listings)
-      .where(eq(listings.isNew, true))
+      .where(condition)
       .orderBy(desc(listings.createdAt), desc(listings.id));
     return rows.map((r) => mapRowToMarketplaceListing(r, requestingUserId));
   } catch (error) {
+    if (isUndefinedColumnError(error)) {
+      console.warn(
+        '[DB Migration Pending] listings tablosunda is_simulated/data_origin sütunları henüz yok; uyumlu sorgu modu kullanılıyor.'
+      );
+      const legacyRows = await db
+        .select({
+          id: listings.id,
+          userId: listings.userId,
+          partId: listings.partId,
+          productName: listings.productName,
+          brandModel: listings.brandModel,
+          platform: listings.platform,
+          listingUrl: listings.listingUrl,
+          listingPriceTry: listings.listingPriceTry,
+          listingDate: listings.listingDate,
+          conditionGrade: listings.conditionGrade,
+          isNew: listings.isNew,
+          lastCheckedAt: listings.lastCheckedAt,
+          createdAt: listings.createdAt,
+        })
+        .from(listings)
+        .where(eq(listings.isNew, true))
+        .orderBy(desc(listings.createdAt), desc(listings.id));
+
+      return legacyRows
+        .map((row) => {
+          const prov = classifyLegacyListingProvenance(row);
+          return mapRowToMarketplaceListing(
+            { ...row, isSimulated: prov.isSimulated, dataOrigin: prov.dataOrigin },
+            requestingUserId
+          );
+        })
+        .filter((item) => includeSimulated || !item.isSimulated);
+    }
+
     handleDatabaseQueryFailure('listings.getDatabaseListings', error);
-    return getMemoryListings(requestingUserId);
+    return getMemoryListings(requestingUserId, includeSimulated);
   }
 }
 
@@ -338,6 +500,8 @@ export async function createDatabaseListing(
         listingDate: input.listingDate,
         conditionGrade: input.conditionGrade,
         isNew: input.isNew,
+        isSimulated: false,
+        dataOrigin: 'user_submitted',
         lastCheckedAt: now,
       })
       .returning();
@@ -348,6 +512,8 @@ export async function createDatabaseListing(
       platform: input.platform,
       priceTry: created.listingPriceTry,
       isNew: created.isNew,
+      isSimulated: false,
+      dataOrigin: 'user_submitted',
       recordedAt: now,
     });
 
@@ -373,7 +539,10 @@ export async function deleteDatabaseListing(
 
   try {
     const [existing] = await db
-      .select()
+      .select({
+        id: listings.id,
+        userId: listings.userId,
+      })
       .from(listings)
       .where(eq(listings.id, numericId));
 
@@ -398,17 +567,29 @@ export async function deleteDatabaseListing(
 
 export async function getPartPriceHistory(
   partId: string,
-  isNew?: boolean
+  isNew?: boolean,
+  options?: { includeSimulated?: boolean }
 ): Promise<PriceHistoryPoint[]> {
+  const includeSimulated = options?.includeSimulated ?? false;
+
   if (!isDatabaseConfigured) {
-    return getMemoryPartPriceHistory(partId, isNew);
+    return getMemoryPartPriceHistory(partId, isNew, includeSimulated);
   }
 
   try {
-    const condition =
-      isNew === undefined
-        ? eq(priceLogs.partId, partId)
-        : and(eq(priceLogs.partId, partId), eq(priceLogs.isNew, isNew));
+    const filters = [eq(priceLogs.partId, partId)];
+    if (isNew !== undefined) {
+      filters.push(eq(priceLogs.isNew, isNew));
+    }
+    if (!includeSimulated) {
+      filters.push(eq(priceLogs.isSimulated, false));
+      filters.push(
+        notInArray(priceLogs.dataOrigin, [
+          'synthetic_fallback',
+          'synthetic_backfill',
+        ])
+      );
+    }
 
     const rows = await db
       .select({
@@ -416,7 +597,7 @@ export async function getPartPriceHistory(
         recordedAt: priceLogs.recordedAt,
       })
       .from(priceLogs)
-      .where(condition)
+      .where(and(...filters))
       .orderBy(asc(priceLogs.recordedAt), asc(priceLogs.id));
 
     return rows.map((r) => ({
@@ -427,8 +608,76 @@ export async function getPartPriceHistory(
       price: r.priceTry,
     }));
   } catch (error) {
+    if (isUndefinedColumnError(error)) {
+      console.warn(
+        '[DB Migration Pending] price_logs tablosunda is_simulated/data_origin sütunları henüz yok; güvenli tarihçe filtresi kullanılıyor.'
+      );
+      const baseFilters = [eq(priceLogs.partId, partId)];
+      if (isNew !== undefined) {
+        baseFilters.push(eq(priceLogs.isNew, isNew));
+      }
+
+      const legacyRows = await db
+        .select({
+          priceTry: priceLogs.priceTry,
+          recordedAt: priceLogs.recordedAt,
+          listingId: priceLogs.listingId,
+        })
+        .from(priceLogs)
+        .where(and(...baseFilters))
+        .orderBy(asc(priceLogs.recordedAt), asc(priceLogs.id));
+
+      if (includeSimulated || legacyRows.length === 0) {
+        return legacyRows.map((r) => ({
+          date: r.recordedAt.toLocaleDateString('tr-TR', {
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          price: r.priceTry,
+        }));
+      }
+
+      // Yalnızca listing_id üzerinden sentetik ilana bağlı olduğu kanıtlanabilen logları dışla;
+      // listing_id NULL olan kayıtlar legacy_unknown olarak korunur.
+      const linkedIds = Array.from(
+        new Set(
+          legacyRows
+            .map((r) => r.listingId)
+            .filter((id): id is number => typeof id === 'number' && id > 0)
+        )
+      );
+
+      const syntheticListingIds = new Set<number>();
+      if (linkedIds.length > 0) {
+        const linkedListings = await db
+          .select({
+            id: listings.id,
+            userId: listings.userId,
+            listingUrl: listings.listingUrl,
+          })
+          .from(listings)
+          .where(inArray(listings.id, linkedIds));
+
+        for (const l of linkedListings) {
+          if (classifyLegacyListingProvenance(l).isSimulated) {
+            syntheticListingIds.add(l.id);
+          }
+        }
+      }
+
+      return legacyRows
+        .filter((r) => r.listingId === null || !syntheticListingIds.has(r.listingId))
+        .map((r) => ({
+          date: r.recordedAt.toLocaleDateString('tr-TR', {
+            day: '2-digit',
+            month: '2-digit',
+          }),
+          price: r.priceTry,
+        }));
+    }
+
     handleDatabaseQueryFailure('listings.getPartPriceHistory', error);
-    return getMemoryPartPriceHistory(partId, isNew);
+    return getMemoryPartPriceHistory(partId, isNew, includeSimulated);
   }
 }
 
@@ -449,13 +698,28 @@ export interface UpsertStoreBotListingInput {
   brandModel: string;
   listingUrl: string;
   listingPriceTry: number;
+  isSimulated?: boolean;
+  dataOrigin?: DataOrigin;
 }
 
 export async function upsertStoreBotListing(
   input: UpsertStoreBotListingInput
-): Promise<{ action: 'created' | 'updated'; listingId: number }> {
+): Promise<{ action: 'created' | 'updated' | 'skipped'; listingId: number }> {
+  const dataOrigin = normalizeDataOrigin(
+    input.dataOrigin ?? (input.isSimulated ? 'synthetic_fallback' : 'store_feed')
+  );
+  const isSimulated = Boolean(input.isSimulated) || isSyntheticOrigin(dataOrigin);
+
+  if (isSimulated && !isSyntheticFallbackAllowed()) {
+    return { action: 'skipped', listingId: 0 };
+  }
+
   if (!isDatabaseConfigured) {
-    return upsertMemoryStoreBotListing(input);
+    return upsertMemoryStoreBotListing({
+      ...input,
+      isSimulated,
+      dataOrigin,
+    });
   }
 
   const now = new Date();
@@ -464,7 +728,10 @@ export async function upsertStoreBotListing(
 
   try {
     const [existing] = await db
-      .select()
+      .select({
+        id: listings.id,
+        isSimulated: listings.isSimulated,
+      })
       .from(listings)
       .where(
         and(
@@ -479,6 +746,10 @@ export async function upsertStoreBotListing(
     let action: 'created' | 'updated';
 
     if (existing) {
+      if (!existing.isSimulated && isSimulated) {
+        return { action: 'skipped', listingId: existing.id };
+      }
+
       await db
         .update(listings)
         .set({
@@ -489,6 +760,8 @@ export async function upsertStoreBotListing(
           listingDate: today,
           conditionGrade: 'Sıfır / Kapalı Kutu',
           isNew: true,
+          isSimulated,
+          dataOrigin,
           lastCheckedAt: now,
         })
         .where(eq(listings.id, existing.id));
@@ -509,6 +782,8 @@ export async function upsertStoreBotListing(
           listingDate: today,
           conditionGrade: 'Sıfır / Kapalı Kutu',
           isNew: true,
+          isSimulated,
+          dataOrigin,
           lastCheckedAt: now,
         })
         .returning({ id: listings.id });
@@ -523,12 +798,18 @@ export async function upsertStoreBotListing(
       platform: input.storeName,
       priceTry: roundedPrice,
       isNew: true,
+      isSimulated,
+      dataOrigin,
       recordedAt: now,
     });
 
     return { action, listingId };
   } catch (error) {
     handleDatabaseQueryFailure('listings.upsertStoreBotListing', error);
-    return upsertMemoryStoreBotListing(input);
+    return upsertMemoryStoreBotListing({
+      ...input,
+      isSimulated,
+      dataOrigin,
+    });
   }
 }

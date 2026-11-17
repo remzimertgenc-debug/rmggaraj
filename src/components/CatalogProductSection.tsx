@@ -256,6 +256,10 @@ export function CatalogProductSection({
               const activePrice = pricing?.newPriceTry ?? 0;
               const storeCount = pricing?.newStats?.listingCount ?? 0;
               const topStore = pricing?.newStats?.sources?.[0] ?? null;
+              const isRealStorePrice =
+                pricing?.newSourceType === 'authorized_api' ||
+                pricing?.newSourceType === 'store_feed' ||
+                pricing?.newSourceType === 'user_listings';
 
               return (
                 <article
@@ -303,9 +307,11 @@ export function CatalogProductSection({
                     <div className="mt-auto pt-2.5 sm:pt-4">
                       <div className="border-t border-slate-700/60 pt-2.5 sm:pt-3.5">
                         <p className="truncate text-[10px] text-slate-400 sm:text-[11px]">
-                          {storeCount > 0 && topStore
+                          {isRealStorePrice && storeCount > 0 && topStore
                             ? `${storeCount} mağaza · ${topStore}`
-                            : 'Sıfır (kapalı kutu)'}
+                            : activePrice > 0
+                              ? 'Referans tahmini fiyat'
+                              : 'Canlı fiyat bekleniyor'}
                         </p>
                         <span className="mt-0.5 block font-mono text-base font-extrabold tracking-tight tabular-nums text-[#FF7900] sm:text-2xl">
                           {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
@@ -347,6 +353,10 @@ export function CatalogProductSection({
               const activePrice = pricing?.newPriceTry ?? 0;
               const storeCount = pricing?.newStats?.listingCount ?? 0;
               const topStore = pricing?.newStats?.sources?.[0] ?? null;
+              const isRealStorePrice =
+                pricing?.newSourceType === 'authorized_api' ||
+                pricing?.newSourceType === 'store_feed' ||
+                pricing?.newSourceType === 'user_listings';
 
               return (
                 <article
@@ -388,9 +398,11 @@ export function CatalogProductSection({
                         {item.specSummary}
                       </p>
                       <p className="mt-1.5 text-[11px] text-slate-400">
-                        {storeCount > 0 && topStore
+                        {isRealStorePrice && storeCount > 0 && topStore
                           ? `${storeCount} mağazada · En uygun ${topStore}`
-                          : 'Sıfır (kapalı kutu) piyasa fiyatı'}
+                          : activePrice > 0
+                            ? 'Referans tahmini piyasa fiyatı (canlı mağaza verisi değil)'
+                            : 'Canlı mağaza fiyatı bekleniyor'}
                       </p>
                     </div>
                   </div>

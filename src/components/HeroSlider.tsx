@@ -62,7 +62,7 @@ export function HeroSlider({
           onMouseLeave={() => setIsPaused(false)}
           onFocusCapture={() => setIsPaused(true)}
           onBlurCapture={() => setIsPaused(false)}
-          className="relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-800"
+          className="rmg-hero-slider relative overflow-hidden rounded-2xl border border-slate-700/70 bg-slate-800"
         >
           {/* Slides Track */}
           <div
@@ -71,6 +71,13 @@ export function HeroSlider({
           >
             {campaignSlides.map(({ preset, build, oldPriceTry, discountPercent }) => {
               const imgFailed = Boolean(failedImages[preset.id]);
+              const hasVerifiedDiscount =
+                build.hasRealListingData &&
+                discountPercent !== null &&
+                discountPercent > 0 &&
+                oldPriceTry !== null &&
+                oldPriceTry > build.samplePriceTry;
+
               return (
                 <div
                   key={preset.id}
@@ -99,11 +106,15 @@ export function HeroSlider({
                   {/* Measured Contrast Scrim */}
                   <div className="absolute inset-0 bg-gradient-to-r from-slate-950/95 via-slate-950/85 to-slate-950/35" />
 
-                  {/* Foreground Ready-System Campaign Copy */}
-                  <div className="relative z-10 flex h-full min-h-[430px] flex-col justify-center px-6 py-12 sm:min-h-[470px] sm:px-12 lg:min-h-[500px] lg:px-16">
-                    <div className="max-w-2xl">
+                  {/* Foreground Ready-System Copy */}
+                  <div className="rmg-hero-slide-content relative z-10 flex h-full min-h-[430px] flex-col justify-center sm:min-h-[470px] lg:min-h-[500px]">
+                    <div className="w-full max-w-2xl min-w-0">
                       <div className="flex flex-wrap items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#FF7900]">
-                        <span>Hazır Sistem Kampanyası</span>
+                        <span>
+                          {build.hasRealListingData
+                            ? 'Canlı Fiyatlı Hazır Sistem'
+                            : 'Önerilen Sistem Konfigürasyonu'}
+                        </span>
                         <span aria-hidden="true" className="text-slate-500">
                           ·
                         </span>
@@ -111,17 +122,16 @@ export function HeroSlider({
                         <span aria-hidden="true" className="text-slate-500">
                           ·
                         </span>
-                        <span className="text-[#FF7900]">-%{discountPercent} Fırsat</span>
+                        {hasVerifiedDiscount ? (
+                          <span className="text-[#FF7900]">-%{discountPercent} Mağaza Farkı</span>
+                        ) : (
+                          <span className="text-slate-300">
+                            {build.hasRealListingData ? 'Güncel Mağaza Verisi' : 'Referans Tahmini'}
+                          </span>
+                        )}
                       </div>
 
-                      <h1
-                        className="mt-3 font-display font-extrabold tracking-tight text-slate-50"
-                        style={{
-                          fontSize: 'clamp(1.85rem, 3.5vw, 3.15rem)',
-                          lineHeight: 1.12,
-                          textWrap: 'balance',
-                        }}
-                      >
+                      <h1 className="rmg-hero-title mt-3 font-display font-extrabold tracking-tight text-slate-50">
                         {preset.systemName}
                       </h1>
 
@@ -137,19 +147,27 @@ export function HeroSlider({
                         <span className="font-mono text-3xl font-extrabold tracking-tight text-[#FF7900] tabular-nums sm:text-4xl">
                           {formatTry(build.samplePriceTry)}
                         </span>
-                        <span className="font-mono text-sm text-slate-400 line-through tabular-nums">
-                          {formatTry(oldPriceTry)}
-                        </span>
+                        {hasVerifiedDiscount && oldPriceTry !== null ? (
+                          <span className="font-mono text-sm text-slate-400 line-through tabular-nums">
+                            {formatTry(oldPriceTry)}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-medium text-slate-300">
+                            {build.hasRealListingData
+                              ? 'Canlı mağaza ve referans bileşen toplamı'
+                              : 'Referans tahmini sistem bütçesi (canlı mağaza fiyatı değil)'}
+                          </span>
+                        )}
                       </div>
 
-                      <div className="mt-6 flex flex-wrap items-center gap-3.5">
+                      <div className="mt-6 flex flex-wrap items-center gap-2.5 sm:gap-3.5">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             onInspectBuild(build);
                           }}
-                          className="inline-flex min-h-[48px] cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-6 py-3 text-sm font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] whitespace-nowrap"
+                          className="inline-flex min-h-[44px] sm:min-h-[48px] max-w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-xs font-bold text-slate-950 transition-colors hover:bg-[#FF8C24] whitespace-nowrap sm:px-6 sm:py-3 sm:text-sm"
                         >
                           <span>Sistemi İncele</span>
                           <ArrowRight className="h-4 w-4 shrink-0" />
@@ -161,7 +179,7 @@ export function HeroSlider({
                             e.stopPropagation();
                             onNavigate('systems');
                           }}
-                          className="inline-flex min-h-[48px] cursor-pointer items-center justify-center rounded-xl border border-slate-600/80 bg-slate-900/75 px-6 py-3 text-sm font-semibold text-slate-100 backdrop-blur-sm transition-colors hover:border-slate-400 hover:bg-slate-800 whitespace-nowrap"
+                          className="inline-flex min-h-[44px] sm:min-h-[48px] max-w-full cursor-pointer items-center justify-center rounded-xl border border-slate-600/80 bg-slate-900/75 px-4 py-2.5 text-xs font-semibold text-slate-100 backdrop-blur-sm transition-colors hover:border-slate-400 hover:bg-slate-800 whitespace-nowrap sm:px-6 sm:py-3 sm:text-sm"
                         >
                           <span>Tüm Hazır Sistemler</span>
                         </button>
@@ -173,7 +191,7 @@ export function HeroSlider({
             })}
           </div>
 
-          {/* Left / Right Arrow Navigation */}
+          {/* Left / Right Edge-Anchored Arrow Navigation (ITOPYA Pattern) */}
           <button
             type="button"
             onClick={(e) => {
@@ -181,9 +199,9 @@ export function HeroSlider({
               goPrev();
             }}
             aria-label="Önceki hazır sistem kampanyası"
-            className="absolute left-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/80 text-slate-100 backdrop-blur-sm transition-colors hover:border-[#FF7900] hover:text-[#FF7900] sm:left-4"
+            className="rmg-hero-arrow absolute left-0 top-1/2 z-20 inline-flex -translate-y-1/2 cursor-pointer items-center justify-center rounded-r-xl border border-l-0 border-slate-700/80 bg-slate-950/75 text-slate-100 backdrop-blur-sm transition-colors hover:border-[#FF7900] hover:bg-slate-900/95 hover:text-[#FF7900] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#FF7900]"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
 
           <button
@@ -193,9 +211,9 @@ export function HeroSlider({
               goNext();
             }}
             aria-label="Sonraki hazır sistem kampanyası"
-            className="absolute right-3 top-1/2 z-20 inline-flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/80 text-slate-100 backdrop-blur-sm transition-colors hover:border-[#FF7900] hover:text-[#FF7900] sm:right-4"
+            className="rmg-hero-arrow absolute right-0 top-1/2 z-20 inline-flex -translate-y-1/2 cursor-pointer items-center justify-center rounded-l-xl border border-r-0 border-slate-700/80 bg-slate-950/75 text-slate-100 backdrop-blur-sm transition-colors hover:border-[#FF7900] hover:bg-slate-900/95 hover:text-[#FF7900] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#FF7900]"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
 
           {/* Bottom Pagination Dots */}

@@ -635,4 +635,49 @@ export async function testDatabaseConnection(options?: {
   return queryPromise;
 }
 
+export async function withDatabaseAdvisoryLock<T>(
+  lockId: number,
+  fn: () => Promise<T>
+): Promise<{ acquired: true; value: T } | { acquired: false }> {
+  if (!pool || !isDatabaseConfigured) {
+    const value = await fn();
+    return { acquired: true, value };
+  }
+
+  let client: import('pg').PoolClient | undefined;
+  let lockAcquired = false;
+
+  try {
+    client = await pool.connect();
+    const res = await client.query<{ locked: boolean }>(
+      'SELECT pg_try_advisory_lock($1) AS locked',
+      [lockId]
+    );
+    lockAcquired = Boolean(res.rows[0]?.locked);
+    if (!lockAcquired) {
+      return { acquired: false };
+    }
+
+    const value = await fn();
+    return { acquired: true, value };
+  } catch (error) {
+    if (!lockAcquired && !shouldDisallowMemoryFallback()) {
+      console.warn(
+        '[PriceBot] Veritabanı advisory lock alınamadı; yerel kilit ile devam ediliyor:',
+        error instanceof Error ? error.message : error
+      );
+      const value = await fn();
+      return { acquired: true, value };
+    }
+    throw error;
+  } finally {
+    if (client && lockAcquired) {
+      await client
+        .query('SELECT pg_advisory_unlock($1)', [lockId])
+        .catch(() => undefined);
+    }
+    client?.release();
+  }
+}
+
 export { db };

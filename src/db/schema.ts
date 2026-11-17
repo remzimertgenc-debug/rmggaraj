@@ -29,6 +29,8 @@ export const listings = pgTable('listings', {
   listingDate: text('listing_date').notNull(),
   conditionGrade: text('condition_grade').notNull(),
   isNew: boolean('is_new').notNull().default(false),
+  isSimulated: boolean('is_simulated').notNull().default(false),
+  dataOrigin: text('data_origin').notNull().default('legacy_unknown'),
   lastCheckedAt: timestamp('last_checked_at').defaultNow().notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
@@ -43,6 +45,8 @@ export const priceLogs = pgTable('price_logs', {
   platform: text('platform'),
   priceTry: integer('price_try').notNull(),
   isNew: boolean('is_new').notNull().default(true),
+  isSimulated: boolean('is_simulated').notNull().default(false),
+  dataOrigin: text('data_origin').notNull().default('legacy_unknown'),
   recordedAt: timestamp('recorded_at').defaultNow().notNull(),
 });
 

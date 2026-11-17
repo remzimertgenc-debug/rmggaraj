@@ -1731,6 +1731,11 @@ export function BuilderPage({
               <span className="block font-mono text-3xl font-bold tabular-nums text-[#FF7900]">
                 {formatTry(currentBuild.samplePriceTry)}
               </span>
+              <span className="mt-1 block text-[11px] text-[#94A3B8]">
+                {currentBuild.hasRealListingData
+                  ? 'Canlı mağaza ve referans bileşen toplamı'
+                  : 'Referans tahmini bileşen toplamı'}
+              </span>
             </div>
 
             {/* Live Compatibility Indicator */}

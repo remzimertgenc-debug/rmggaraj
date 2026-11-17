@@ -9,13 +9,17 @@ import {
   RAM_DB,
   SSD_DB,
 } from '../../shared/hardwareCatalog.ts';
-import { DatabaseOperationError } from '../../src/db/index.ts';
 import {
+  DatabaseOperationError,
+  withDatabaseAdvisoryLock,
+} from '../../src/db/index.ts';
+import {
+  isSyntheticFallbackAllowed,
   upsertStoreBotListing,
   type StoreBotPlatform,
 } from '../../src/db/listings.ts';
 import { upsertDatabaseProduct } from '../../src/db/products.ts';
-import type { PartCategoryKey } from '../../src/types/pc.ts';
+import type { DataOrigin, PartCategoryKey } from '../../src/types/pc.ts';
 import { findMatchingPartId } from './matcher.ts';
 import { estimateReferenceRateForPart } from './referenceRates.ts';
 
@@ -34,6 +38,8 @@ export interface ExternalFeedItem {
   priceTry: number;
   url: string;
   imageUrl: string | null;
+  isSimulated: boolean;
+  dataOrigin: Extract<DataOrigin, 'store_feed' | 'synthetic_fallback'>;
 }
 
 export interface PriceBotSyncResult {
@@ -43,10 +49,16 @@ export interface PriceBotSyncResult {
   created: number;
   updated: number;
   skipped: number;
+  skippedDueToLock?: boolean;
+  lockReason?: string;
 }
+
+const PRICE_BOT_ADVISORY_LOCK_ID = 94720183;
+const STALE_LOCK_MS = 15 * 60 * 1000;
 
 let scheduledTask: ScheduledTask | null = null;
 let isSyncRunning = false;
+let syncStartedAtMs: number | null = null;
 
 const ALL_TURKISH_STORES: readonly StoreBotPlatform[] = [
   'İtopya',
@@ -273,6 +285,8 @@ export function parseStoreFeedPayload(
         priceTry,
         url,
         imageUrl: /^https?:\/\//i.test(rawImage) ? rawImage : null,
+        isSimulated: false,
+        dataOrigin: 'store_feed',
       });
     }
     return items;
@@ -308,6 +322,8 @@ export function parseStoreFeedPayload(
       priceTry,
       url,
       imageUrl: /^https?:\/\//i.test(rawImage) ? rawImage : null,
+      isSimulated: false,
+      dataOrigin: 'store_feed',
     });
   }
 
@@ -560,6 +576,8 @@ function buildFallbackCatalogItemsForStore(store: StoreBotPlatform): ExternalFee
       priceTry,
       url: buildStoreProductUrl(store, part.name),
       imageUrl: null,
+      isSimulated: true,
+      dataOrigin: 'synthetic_fallback',
     });
   }
 
@@ -568,9 +586,11 @@ function buildFallbackCatalogItemsForStore(store: StoreBotPlatform): ExternalFee
 
 /**
  * Yapılandırılan tüm mağaza XML/JSON affiliate feed kaynaklarını dinamik döngüyle çeker.
+ * ALLOW_SYNTHETIC_FALLBACK=true açıkça tanımlı değilse asla sahte fiyat/ilan üretmez.
  */
 export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
   const sources = getConfiguredFeedSources();
+  const allowSyntheticFallback = isSyntheticFallbackAllowed();
   const collected: ExternalFeedItem[] = [];
 
   for (const source of sources) {
@@ -585,10 +605,16 @@ export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
         });
 
         if (!response.ok) {
-          console.warn(
-            `[PriceBot] ${source.store} feed yanıtı başarısız (${response.status}), katalog beslemesi kullanılıyor.`
-          );
-          collected.push(...buildFallbackCatalogItemsForStore(source.store));
+          if (allowSyntheticFallback) {
+            console.warn(
+              `[PriceBot] ${source.store} feed yanıtı başarısız (${response.status}), geliştirici sentetik yedek beslemesi kullanılıyor.`
+            );
+            collected.push(...buildFallbackCatalogItemsForStore(source.store));
+          } else {
+            console.warn(
+              `[PriceBot] ${source.store} feed yanıtı başarısız (${response.status}); ALLOW_SYNTHETIC_FALLBACK=false olduğu için sahte ilan üretilmedi.`
+            );
+          }
           continue;
         }
 
@@ -599,15 +625,22 @@ export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
           source.store
         );
         collected.push(...parsedItems);
-      } else {
+      } else if (allowSyntheticFallback) {
         collected.push(...buildFallbackCatalogItemsForStore(source.store));
       }
     } catch (error) {
-      console.warn(
-        `[PriceBot] ${source.store} feed okuma hatası, katalog beslemesi kullanılıyor:`,
-        error
-      );
-      collected.push(...buildFallbackCatalogItemsForStore(source.store));
+      if (allowSyntheticFallback) {
+        console.warn(
+          `[PriceBot] ${source.store} feed okuma hatası, geliştirici sentetik yedek beslemesi kullanılıyor:`,
+          error
+        );
+        collected.push(...buildFallbackCatalogItemsForStore(source.store));
+      } else {
+        console.warn(
+          `[PriceBot] ${source.store} feed okuma hatası; ALLOW_SYNTHETIC_FALLBACK=false olduğu için sahte ilan üretilmedi:`,
+          error instanceof Error ? error.message : error
+        );
+      }
     }
   }
 
@@ -615,6 +648,9 @@ export async function fetchAllStoreFeeds(): Promise<ExternalFeedItem[]> {
 }
 
 export function buildMockStoreFeed(): ExternalFeedItem[] {
+  if (!isSyntheticFallbackAllowed()) {
+    return [];
+  }
   const sources = getConfiguredFeedSources();
   const list: ExternalFeedItem[] = [];
   for (const source of sources) {
@@ -624,7 +660,160 @@ export function buildMockStoreFeed(): ExternalFeedItem[] {
 }
 
 export async function runPriceBotSync(): Promise<PriceBotSyncResult> {
-  if (isSyncRunning) {
+  if (
+    isSyncRunning &&
+    syncStartedAtMs !== null &&
+    Date.now() - syncStartedAtMs < STALE_LOCK_MS
+  ) {
+    return {
+      processed: 0,
+      matched: 0,
+      discoveredProducts: 0,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      skippedDueToLock: true,
+      lockReason:
+        'Fiyat senkronizasyonu şu anda bu sunucu örneğinde çalışıyor; eşzamanlı çalıştırma engellendi.',
+    };
+  }
+
+  isSyncRunning = true;
+  syncStartedAtMs = Date.now();
+  const allowSynthetic = isSyntheticFallbackAllowed();
+
+  try {
+    const lockExecution = await withDatabaseAdvisoryLock(
+      PRICE_BOT_ADVISORY_LOCK_ID,
+      async (): Promise<PriceBotSyncResult> => {
+        let feed: ExternalFeedItem[] = [];
+        let matched = 0;
+        let discoveredProducts = 0;
+        let created = 0;
+        let updated = 0;
+        let skipped = 0;
+
+        feed = await fetchAllStoreFeeds();
+
+        if (feed.length === 0) {
+          console.info(
+            `[PriceBot] İşlenecek mağaza feed öğesi bulunamadı (ALLOW_SYNTHETIC_FALLBACK=${allowSynthetic}). Sahte ilan üretilmedi.`
+          );
+          return {
+            processed: 0,
+            matched: 0,
+            discoveredProducts: 0,
+            created: 0,
+            updated: 0,
+            skipped: 0,
+          };
+        }
+
+        for (const item of feed) {
+          if (item.isSimulated && !allowSynthetic) {
+            skipped += 1;
+            continue;
+          }
+
+          const catalogMatchId = findMatchingPartId(item.rawName);
+          let resolvedPartId = catalogMatchId;
+
+          if (!resolvedPartId) {
+            const category = inferCategoryKey(item.categoryRaw, item.rawName);
+            const brand = item.brand || inferBrandFromName(item.rawName);
+            resolvedPartId = `db-${category}-${slugifyId(item.rawName)}`;
+
+            await upsertDatabaseProduct({
+              id: resolvedPartId,
+              category,
+              brand,
+              name: item.rawName,
+              specSummary:
+                item.specSummary || `${brand} · ${item.store} otomatik ürün kaydı`,
+              imageUrl: item.imageUrl,
+              sourceStore: item.store,
+              externalUrl: item.url,
+            });
+            discoveredProducts += 1;
+          } else if (item.imageUrl) {
+            const category = inferCategoryKey(item.categoryRaw, item.rawName);
+            const brand = item.brand || inferBrandFromName(item.rawName);
+            await upsertDatabaseProduct({
+              id: resolvedPartId,
+              category,
+              brand,
+              name: item.rawName,
+              specSummary: item.specSummary,
+              imageUrl: item.imageUrl,
+              sourceStore: item.store,
+              externalUrl: item.url,
+            });
+          }
+
+          if (!resolvedPartId) {
+            skipped += 1;
+            continue;
+          }
+
+          matched += 1;
+          const result = await upsertStoreBotListing({
+            partId: resolvedPartId,
+            storeName: item.store,
+            productName: item.rawName,
+            brandModel: `${item.brand} · ${item.rawName}`.slice(0, 120),
+            listingUrl: item.url,
+            listingPriceTry: item.priceTry,
+            isSimulated: item.isSimulated,
+            dataOrigin: item.dataOrigin,
+          });
+
+          if (result.action === 'created') {
+            created += 1;
+          } else if (result.action === 'updated') {
+            updated += 1;
+          } else {
+            skipped += 1;
+          }
+        }
+
+        console.info(
+          `[PriceBot] Senkronizasyon tamamlandı: ${matched}/${feed.length} işlendi (${discoveredProducts} katalog dışı ürün DB'ye eklendi, ${created} yeni ilan, ${updated} ilan güncellendi, ${skipped} atlandı).`
+        );
+
+        return {
+          processed: feed.length,
+          matched,
+          discoveredProducts,
+          created,
+          updated,
+          skipped,
+        };
+      }
+    );
+
+    if (!lockExecution.acquired) {
+      return {
+        processed: 0,
+        matched: 0,
+        discoveredProducts: 0,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        skippedDueToLock: true,
+        lockReason:
+          'Başka bir sunucu örneği fiyat senkronizasyon kilidini tutuyor; eşzamanlı çalışma engellendi.',
+      };
+    }
+
+    return lockExecution.value;
+  } catch (error) {
+    console.error(
+      '[PriceBot] Fiyat güncelleme görevi hata verdi:',
+      error instanceof Error ? error.message : error
+    );
+    if (error instanceof DatabaseOperationError) {
+      throw error;
+    }
     return {
       processed: 0,
       matched: 0,
@@ -633,104 +822,9 @@ export async function runPriceBotSync(): Promise<PriceBotSyncResult> {
       updated: 0,
       skipped: 0,
     };
-  }
-
-  isSyncRunning = true;
-  let feed: ExternalFeedItem[] = [];
-  let matched = 0;
-  let discoveredProducts = 0;
-  let created = 0;
-  let updated = 0;
-  let skipped = 0;
-
-  try {
-    feed = await fetchAllStoreFeeds();
-
-    for (const item of feed) {
-      const catalogMatchId = findMatchingPartId(item.rawName);
-      let resolvedPartId = catalogMatchId;
-
-      if (!resolvedPartId) {
-        const category = inferCategoryKey(item.categoryRaw, item.rawName);
-        const brand = item.brand || inferBrandFromName(item.rawName);
-        resolvedPartId = `db-${category}-${slugifyId(item.rawName)}`;
-
-        await upsertDatabaseProduct({
-          id: resolvedPartId,
-          category,
-          brand,
-          name: item.rawName,
-          specSummary:
-            item.specSummary || `${brand} · ${item.store} otomatik ürün kaydı`,
-          imageUrl: item.imageUrl,
-          sourceStore: item.store,
-          externalUrl: item.url,
-        });
-        discoveredProducts += 1;
-      } else if (item.imageUrl) {
-        const category = inferCategoryKey(item.categoryRaw, item.rawName);
-        const brand = item.brand || inferBrandFromName(item.rawName);
-        await upsertDatabaseProduct({
-          id: resolvedPartId,
-          category,
-          brand,
-          name: item.rawName,
-          specSummary: item.specSummary,
-          imageUrl: item.imageUrl,
-          sourceStore: item.store,
-          externalUrl: item.url,
-        });
-      }
-
-      if (!resolvedPartId) {
-        skipped += 1;
-        continue;
-      }
-
-      matched += 1;
-      const result = await upsertStoreBotListing({
-        partId: resolvedPartId,
-        storeName: item.store,
-        productName: item.rawName,
-        brandModel: `${item.brand} · ${item.rawName}`.slice(0, 120),
-        listingUrl: item.url,
-        listingPriceTry: item.priceTry,
-      });
-
-      if (result.action === 'created') {
-        created += 1;
-      } else {
-        updated += 1;
-      }
-    }
-
-    console.info(
-      `[PriceBot] Senkronizasyon tamamlandı: ${matched}/${feed.length} işlendi (${discoveredProducts} katalog dışı ürün DB'ye eklendi, ${created} yeni ilan, ${updated} ilan güncellendi).`
-    );
-
-    return {
-      processed: feed.length,
-      matched,
-      discoveredProducts,
-      created,
-      updated,
-      skipped,
-    };
-  } catch (error) {
-    console.error('[PriceBot] Fiyat güncelleme görevi hata verdi:', error instanceof Error ? error.message : error);
-    if (error instanceof DatabaseOperationError) {
-      throw error;
-    }
-    return {
-      processed: feed.length,
-      matched,
-      discoveredProducts,
-      created,
-      updated,
-      skipped,
-    };
   } finally {
     isSyncRunning = false;
+    syncStartedAtMs = null;
   }
 }
 

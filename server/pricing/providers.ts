@@ -11,6 +11,8 @@ import {
 import {
   getDatabaseListings,
   getPartPriceHistory,
+  isSyntheticFallbackAllowed,
+  isSyntheticOrigin,
   type PriceHistoryPoint,
 } from '../../src/db/listings.ts';
 import { getDatabaseProducts } from '../../src/db/products.ts';
@@ -104,7 +106,7 @@ export async function fetchPartPriceHistory(
   partId: string,
   isNew = true
 ): Promise<PriceHistoryPoint[]> {
-  return await getPartPriceHistory(partId, isNew);
+  return await getPartPriceHistory(partId, isNew, { includeSimulated: false });
 }
 
 /**
@@ -149,7 +151,13 @@ async function fetchFromAuthorizedApi(): Promise<{
     }
 
     const payload = (await response.json()) as { listings?: MarketplaceListing[] };
-    const apiListings = Array.isArray(payload.listings) ? payload.listings : [];
+    const apiListings = (Array.isArray(payload.listings) ? payload.listings : []).map(
+      (item) => ({
+        ...item,
+        isSimulated: false,
+        dataOrigin: 'authorized_api' as const,
+      })
+    );
     return {
       configured: true,
       listings: apiListings,
@@ -165,19 +173,20 @@ async function fetchFromAuthorizedApi(): Promise<{
   }
 }
 
-
-
 export async function getPricingCatalog(
   requestingUserId?: number
 ): Promise<PricingCatalogResponse> {
   const [apiResult, dbListings, dbProducts] = await Promise.all([
     fetchFromAuthorizedApi(),
-    getDatabaseListings(requestingUserId),
+    getDatabaseListings(requestingUserId, { includeSimulated: false }),
     getDatabaseProducts(),
   ]);
 
   const combinedRawListings = [...apiResult.listings, ...dbListings].filter(
-    (listing) => listing.isNew
+    (listing) =>
+      listing.isNew &&
+      !listing.isSimulated &&
+      (!listing.dataOrigin || !isSyntheticOrigin(listing.dataOrigin))
   );
   const listingsByPartId = new Map<string, MarketplaceListing[]>();
   for (const listing of combinedRawListings) {
@@ -256,10 +265,19 @@ export async function getPricingCatalog(
         : 'Referans sıfır piyasa tahmini';
 
     if (newAnalysis.stats) {
+      const validListings = newAnalysis.processedListings.filter(
+        (l) => !l.isSuspiciousOutlier
+      );
+      const sourceListings = validListings.length > 0 ? validListings : newRaw;
+
       newPriceTry = newAnalysis.stats.medianPriceTry;
-      newSourceType = apiResult.listings.some((l) => l.partId === part.id && l.isNew)
-        ? 'authorized_api'
-        : 'user_listings';
+      if (sourceListings.some((l) => l.dataOrigin === 'authorized_api')) {
+        newSourceType = 'authorized_api';
+      } else if (sourceListings.some((l) => l.dataOrigin === 'store_feed')) {
+        newSourceType = 'store_feed';
+      } else {
+        newSourceType = 'user_listings';
+      }
       newSourceLabel = `${newAnalysis.stats.sources.join(' / ')} (${
         newAnalysis.stats.listingCount
       } mağaza medyanı)`;
@@ -280,6 +298,7 @@ export async function getPricingCatalog(
   return {
     providerStatus: {
       authorizedApiConfigured: apiResult.configured,
+      syntheticFallbackEnabled: isSyntheticFallbackAllowed(),
       providerMessage: apiResult.statusMessage,
       lastSyncedAt: new Date().toISOString(),
     },

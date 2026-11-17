@@ -22,20 +22,11 @@ interface DealItem {
   sourceLabel: string;
 }
 
-const FEATURED_PART_FALLBACKS: {
-  id: string;
-  discountPercent: number;
-  fallbackPriceTry: number;
-}[] = [
-  { id: 'gpu-rtx4060', discountPercent: 14, fallbackPriceTry: 11899 },
-  { id: 'cpu-r5-7500f', discountPercent: 12, fallbackPriceTry: 6499 },
-  { id: 'gpu-rx7700xt', discountPercent: 15, fallbackPriceTry: 16999 },
-  { id: 'ssd-1tb-gen4', discountPercent: 18, fallbackPriceTry: 2499 },
-  { id: 'ram-32-d5', discountPercent: 11, fallbackPriceTry: 4299 },
-  { id: 'mb-b650m-k', discountPercent: 10, fallbackPriceTry: 4899 },
-  { id: 'psu-750-gold', discountPercent: 13, fallbackPriceTry: 4499 },
-  { id: 'cpu-r7-7800x3d', discountPercent: 9, fallbackPriceTry: 15999 },
-];
+const REAL_LISTING_SOURCE_TYPES = new Set([
+  'authorized_api',
+  'store_feed',
+  'user_listings',
+]);
 
 export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcaseProps) {
   const scrollerRef = useRef<HTMLDivElement>(null);
@@ -47,15 +38,19 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
     const items: DealItem[] = [];
     const seen = new Set<string>();
 
-    // 1) Öncelik: Veritabanındaki mağazalar arası en düşük fiyat farkı sunan tekil donanımlar
+    // 1) Katalogdaki gerçek mağaza ilanlarında çoklu mağaza fiyat farkı sunan tekil donanımlar
     for (const entry of entries) {
       const { category, part } = entry;
       const pricing = partsPricing[part.id];
-      if (!pricing) continue;
+      if (!pricing || !REAL_LISTING_SOURCE_TYPES.has(pricing.newSourceType)) {
+        continue;
+      }
 
+      const listingCount = pricing.newStats?.listingCount ?? 0;
       const minStorePrice = pricing.newStats?.minPriceTry ?? null;
       const avgStorePrice = pricing.newStats?.averagePriceTry ?? null;
       if (
+        listingCount >= 2 &&
         minStorePrice &&
         avgStorePrice &&
         avgStorePrice > minStorePrice &&
@@ -73,62 +68,50 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
             oldPriceTry: avgStorePrice,
             dealPriceTry: minStorePrice,
             discountPercent: pct,
-            sourceLabel: 'Mağaza En Düşük',
+            sourceLabel: 'Mağaza Ort. Altında',
           });
-          continue;
         }
       }
     }
 
-    // 2) Katalogdan öne çıkan indirimli tekil donanımlar (fiyat her zaman dolu)
-    for (const preset of FEATURED_PART_FALLBACKS) {
-      if (items.length >= 8) break;
-      if (seen.has(preset.id)) continue;
-      const entry = entries.find((e) => e.part.id === preset.id);
-      if (!entry) continue;
-      const pricing = partsPricing[entry.part.id];
-      const livePrice = pricing?.newPriceTry ?? null;
-      const dealPriceTry = livePrice && livePrice > 0 ? livePrice : preset.fallbackPriceTry;
-
-      seen.add(entry.part.id);
-      const oldPriceTry = Math.round(dealPriceTry / (1 - preset.discountPercent / 100));
-      items.push({
-        id: entry.part.id,
-        category: entry.category,
-        brand: entry.part.brand,
-        name: entry.part.model,
-        imageUrl: productImages[entry.part.id] ?? null,
-        oldPriceTry,
-        dealPriceTry,
-        discountPercent: preset.discountPercent,
-        sourceLabel: 'Fırsat Donanımı',
-      });
-    }
-
-    // 3) Dinamik katalogdan fiyatlı ürünler varsa ekle
+    // 2) Dinamik mağaza ürünlerinde gerçek çoklu mağaza fiyat farkı varsa ekle (yapay indirim üretilmez)
     for (const dyn of pricingCatalog?.dynamicProducts ?? []) {
       if (items.length >= 10) break;
       if (seen.has(dyn.id)) continue;
       const pricing = partsPricing[dyn.id];
-      const basePrice = pricing?.newPriceTry ?? null;
-      if (!basePrice || basePrice <= 0) continue;
+      if (!pricing || !REAL_LISTING_SOURCE_TYPES.has(pricing.newSourceType)) {
+        continue;
+      }
 
-      seen.add(dyn.id);
-      const oldPrice = Math.round(basePrice * 1.12);
-      items.push({
-        id: dyn.id,
-        category: dyn.category,
-        brand: dyn.brand,
-        name: dyn.name,
-        imageUrl: dyn.imageUrl ?? productImages[dyn.id] ?? null,
-        oldPriceTry: oldPrice,
-        dealPriceTry: basePrice,
-        discountPercent: 11,
-        sourceLabel: dyn.sourceStore ?? 'Mağaza Fırsatı',
-      });
+      const listingCount = pricing.newStats?.listingCount ?? 0;
+      const minStorePrice = pricing.newStats?.minPriceTry ?? null;
+      const avgStorePrice = pricing.newStats?.averagePriceTry ?? null;
+      if (
+        listingCount >= 2 &&
+        minStorePrice &&
+        avgStorePrice &&
+        avgStorePrice > minStorePrice &&
+        minStorePrice > 0
+      ) {
+        const pct = Math.round(((avgStorePrice - minStorePrice) / avgStorePrice) * 100);
+        if (pct >= 4) {
+          seen.add(dyn.id);
+          items.push({
+            id: dyn.id,
+            category: dyn.category,
+            brand: dyn.brand,
+            name: dyn.name,
+            imageUrl: dyn.imageUrl ?? productImages[dyn.id] ?? null,
+            oldPriceTry: avgStorePrice,
+            dealPriceTry: minStorePrice,
+            discountPercent: pct,
+            sourceLabel: dyn.sourceStore ?? 'Mağaza Ort. Altında',
+          });
+        }
+      }
     }
 
-    return items.slice(0, 10);
+    return items.sort((a, b) => b.discountPercent - a.discountPercent).slice(0, 10);
   }, [pricingCatalog]);
 
   const scrollByCard = (direction: 'left' | 'right') => {
@@ -145,13 +128,13 @@ export function DealsShowcase({ pricingCatalog, onInspectPart }: DealsShowcasePr
       <div className="flex flex-col justify-between gap-4 pb-7 sm:flex-row sm:items-end">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#FF7900]">
-            Tekil Bileşen İndirimleri
+            Gerçek Mağaza Karşılaştırması
           </p>
           <h2 className="mt-1.5 font-display text-2xl font-extrabold tracking-tight text-slate-50 sm:text-3xl">
             Fırsat Donanımları
           </h2>
           <p className="mt-1.5 text-sm text-slate-400">
-            İndirimdeki tekil ekran kartı, işlemci, anakart, RAM ve SSD bileşenleri.
+            Canlı mağaza verilerinde mağaza ortalamasının altında fiyat sunan tekil bileşenler.
           </p>
         </div>
 

@@ -14,6 +14,7 @@ import {
   type AuthRequest,
   optionalAuth,
   requireAuth,
+  requireBotAdminOrCron,
 } from './src/middleware/auth.ts';
 import { testDatabaseConnection } from './src/db/index.ts';
 
@@ -133,19 +134,34 @@ async function startServer() {
     res.json({ productName: rawName, partId: matchedPartId });
   });
 
-  app.post('/api/pricing/bot/run', writeApiRateLimiter, requireAuth, async (_req: AuthRequest, res) => {
-    try {
-      const result = await runPriceBotSync();
-      res.json({ ok: true, result });
-    } catch (error) {
-      res.status(500).json({
-        error:
-          error instanceof Error
-            ? error.message
-            : 'Fiyat botu çalıştırılamadı.',
-      });
+  app.post(
+    '/api/pricing/bot/run',
+    writeApiRateLimiter,
+    requireBotAdminOrCron,
+    async (_req: AuthRequest, res) => {
+      try {
+        const result = await runPriceBotSync();
+        if (result.skippedDueToLock) {
+          res.status(409).json({
+            ok: false,
+            error:
+              result.lockReason ??
+              'Fiyat botu senkronizasyonu zaten çalışıyor.',
+            result,
+          });
+          return;
+        }
+        res.json({ ok: true, result });
+      } catch (error) {
+        res.status(500).json({
+          error:
+            error instanceof Error
+              ? error.message
+              : 'Fiyat botu çalıştırılamadı.',
+        });
+      }
     }
-  });
+  );
 
   if (!IS_PROD) {
     const disableHmr = process.env.DISABLE_HMR === 'true';

@@ -15,6 +15,12 @@ export function ProductCard({
   onInspect,
 }: ProductCardProps) {
   const activePrice = pricing?.newPriceTry ?? 0;
+  const storeCount = pricing?.newStats?.listingCount ?? 0;
+  const topStore = pricing?.newStats?.sources?.[0] ?? null;
+  const isRealStorePrice =
+    pricing?.newSourceType === 'authorized_api' ||
+    pricing?.newSourceType === 'store_feed' ||
+    pricing?.newSourceType === 'user_listings';
 
   return (
     <article className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-800/75 transition-all duration-200 hover:scale-[1.015] hover:border-[#FF7900]/70 hover:shadow-[0_18px_40px_-16px_rgba(0,0,0,0.65)]">
@@ -44,9 +50,18 @@ export function ProductCard({
         </h3>
 
         <div className="space-y-2.5 sm:space-y-4">
-          <span className="block font-mono text-base font-extrabold tracking-tight tabular-nums text-[#FF7900] sm:text-2xl lg:text-3xl">
-            {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
-          </span>
+          <div>
+            <span className="block truncate text-[10px] text-slate-400 sm:text-[11px]">
+              {isRealStorePrice && storeCount > 0 && topStore
+                ? `${storeCount} mağaza · ${topStore}`
+                : activePrice > 0
+                  ? 'Referans tahmini fiyat'
+                  : 'Canlı fiyat bekleniyor'}
+            </span>
+            <span className="mt-0.5 block font-mono text-base font-extrabold tracking-tight tabular-nums text-[#FF7900] sm:text-2xl lg:text-3xl">
+              {activePrice > 0 ? formatTry(activePrice) : 'Fiyat Gör'}
+            </span>
+          </div>
 
           <button
             type="button"

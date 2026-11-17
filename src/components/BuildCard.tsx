@@ -104,7 +104,9 @@ export function BuildCard({
             {formatTry(build.samplePriceTry)}
           </span>
           <span className="mt-0.5 block truncate text-[10px] font-medium text-slate-500 tabular-nums sm:text-[11px]">
-            {formatTry(monthlyInstallmentTry)} x 12 Taksit
+            {build.hasRealListingData
+              ? `${formatTry(monthlyInstallmentTry)} x 12 Taksit`
+              : 'Referans tahmini sistem fiyatı'}
           </span>
         </div>
       </article>
@@ -222,7 +224,9 @@ export function BuildCard({
               {formatTry(build.samplePriceTry)}
             </span>
             <span className="mt-0.5 block truncate text-[10px] font-medium text-slate-500 tabular-nums sm:text-[11px]">
-              {formatTry(monthlyInstallmentTry)} x 12 Taksit
+              {build.hasRealListingData
+                ? `Canlı mağaza verisi · ${formatTry(monthlyInstallmentTry)} x 12 Taksit`
+                : 'Referans tahmini sistem bütçesi'}
             </span>
           </div>
 

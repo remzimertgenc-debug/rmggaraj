@@ -78,3 +78,39 @@ input[type="range"].rmg-slider::-moz-range-thumb {
     scroll-behavior: auto;
   }
 }
+
+/* HeroSlider responsive edge-anchored arrow & safe-zone layout */
+.rmg-hero-slider {
+  --hero-arrow-w: clamp(2.25rem, 1.8rem + 1.4vw, 3rem);
+  --hero-arrow-h: clamp(3rem, 2.5rem + 1.8vw, 4.25rem);
+  --hero-content-px: calc(
+    var(--hero-arrow-w) + clamp(0.75rem, 0.4rem + 1.5vw, 2rem)
+  );
+  --hero-content-pt: clamp(2rem, 1.5rem + 1.5vw, 3.25rem);
+  --hero-content-pb: clamp(4rem, 3.25rem + 1.5vw, 4.75rem);
+}
+
+.rmg-hero-slide-content {
+  padding-inline: var(--hero-content-px);
+  padding-top: var(--hero-content-pt);
+  padding-bottom: var(--hero-content-pb);
+}
+
+.rmg-hero-title {
+  font-size: clamp(1.45rem, 0.95rem + 2.4vw, 3.15rem);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+.rmg-hero-arrow {
+  width: var(--hero-arrow-w);
+  height: var(--hero-arrow-h);
+}
+
+@media (max-width: 375px) {
+  .rmg-hero-slider {
+    --hero-arrow-w: 2.25rem;
+    --hero-content-px: calc(var(--hero-arrow-w) + 0.75rem);
+  }
+}
+

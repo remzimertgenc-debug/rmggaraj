@@ -164,7 +164,7 @@ export function SystemDetailPage({
                 <span className="text-xs text-[#94A3B8]">
                   {build.hasRealListingData
                     ? 'Canlı mağaza ve referans fiyat'
-                    : 'Referans bütçe fiyatı'}
+                    : 'Referans tahmini bütçe fiyatı'}
                 </span>
               </div>
             </div>
@@ -379,9 +379,17 @@ export function SystemDetailPage({
                     </div>
                   </button>
 
-                  <span className="font-mono text-sm font-bold tabular-nums text-[#FF7900] shrink-0 sm:text-base">
-                    {spec.priceTry === 0 ? 'Dahili' : formatTry(spec.priceTry)}
-                  </span>
+                  <div className="shrink-0 sm:text-right">
+                    <span className="block font-mono text-sm font-bold tabular-nums text-[#FF7900] sm:text-base">
+                      {spec.priceTry === 0 ? 'Dahili' : formatTry(spec.priceTry)}
+                    </span>
+                    {spec.priceTry > 0 &&
+                      spec.priceSourceType === 'estimated_reference' && (
+                        <span className="block text-[10px] text-[#94A3B8]">
+                          Referans tahmini
+                        </span>
+                      )}
+                  </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-800/80 pt-2.5 sm:mt-4 sm:gap-3 sm:pt-3">
