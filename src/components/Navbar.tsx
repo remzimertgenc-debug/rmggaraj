@@ -1,4 +1,5 @@
 import {
+  Bell,
   Box,
   ChevronRight,
   CircuitBoard,
@@ -6,6 +7,8 @@ import {
   Fan,
   Gauge,
   HardDrive,
+  Heart,
+  Info,
   Layers,
   LogIn,
   LogOut,
@@ -13,7 +16,10 @@ import {
   Menu,
   Monitor,
   Search,
+  Settings,
   SlidersHorizontal,
+  User as UserIcon,
+  UserRound,
   X,
   Zap,
 } from 'lucide-react';
@@ -162,7 +168,37 @@ export function Navbar({
   const [mobileOpen, setMobileOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setAvatarLoadFailed(false);
+  }, [user?.photoURL, user?.uid]);
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
+        setAccountMenuOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [accountMenuOpen]);
 
   useEffect(() => {
     if (!sidebarOpen) return;
@@ -392,6 +428,7 @@ export function Navbar({
     onNavigate(page);
     setMobileOpen(false);
     setSidebarOpen(false);
+    setAccountMenuOpen(false);
   };
 
   const handleSidebarCategoryClick = (category: PartCategoryKey) => {
@@ -587,29 +624,224 @@ export function Navbar({
           </div>
 
         {/* Right: User Actions */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
           {user ? (
-            <button
-              type="button"
-              onClick={() => void signOutUser()}
-              title={`${user.email ?? 'Hesap'} — Çıkış Yap`}
-              className="hidden sm:inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-700/70 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition-colors hover:border-slate-500 whitespace-nowrap shrink-0"
-            >
-              <span className="max-w-[110px] truncate">
-                {user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'Hesabım'}
-              </span>
-              <LogOut className="h-3.5 w-3.5 text-slate-400" />
-            </button>
+            <div className="hidden sm:flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleNavClick('profile')}
+                title="Profilim ve Hesabım"
+                aria-current={currentPage === 'profile' ? 'page' : undefined}
+                className={`inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+                  currentPage === 'profile'
+                    ? 'border-[#FF7900] bg-[#FF7900]/15 text-[#FF7900]'
+                    : 'border-slate-700/70 bg-slate-800 text-slate-100 hover:border-[#FF7900] hover:text-white'
+                }`}
+              >
+                {user.photoURL && !avatarLoadFailed ? (
+                  <img
+                    src={user.photoURL}
+                    alt={user.displayName || user.email || 'Profil'}
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarLoadFailed(true)}
+                    className="h-6 w-6 shrink-0 rounded-full border border-slate-600/80 object-cover"
+                  />
+                ) : (
+                  <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-[#FF7900]/40 bg-[#FF7900]/15 text-[10px] font-bold text-[#FF7900]">
+                    {(user.displayName || user.email || 'R')
+                      .trim()
+                      .slice(0, 2)
+                      .toLocaleUpperCase('tr-TR') || <UserIcon className="h-3.5 w-3.5" />}
+                  </span>
+                )}
+                <span className="max-w-[110px] truncate">
+                  {user.displayName?.split(' ')[0] || user.email?.split('@')[0] || 'Hesabım'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  void signOutUser();
+                }}
+                title="Çıkış Yap"
+                aria-label="Çıkış Yap"
+                className="inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-slate-700/70 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-300 transition-colors hover:border-rose-500/70 hover:text-rose-300 whitespace-nowrap shrink-0"
+              >
+                <LogOut className="h-3.5 w-3.5 shrink-0" />
+                <span className="hidden lg:inline">Çıkış Yap</span>
+              </button>
+            </div>
           ) : (
             <button
               type="button"
-              onClick={() => void signInWithGoogle()}
+              onClick={() => {
+                setAccountMenuOpen(false);
+                void signInWithGoogle();
+              }}
               className="hidden sm:inline-flex min-h-[42px] cursor-pointer items-center justify-center gap-1.5 rounded-xl border border-[#246BFD]/60 bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-100 transition-colors hover:bg-[#246BFD] whitespace-nowrap shrink-0"
             >
               <LogIn className="h-3.5 w-3.5" />
               <span>Giriş Yap</span>
             </button>
           )}
+
+          {/* Desktop Profile Icon & Dropdown Account Menu */}
+          <div ref={accountMenuRef} className="relative hidden sm:block">
+            <button
+              type="button"
+              onClick={() => setAccountMenuOpen((prev) => !prev)}
+              aria-expanded={accountMenuOpen}
+              aria-haspopup="menu"
+              aria-label={
+                accountMenuOpen ? 'Hesap menüsünü kapat' : 'Hesap menüsünü aç'
+              }
+              title="Hesap Menüsü"
+              className={`inline-flex h-[42px] w-[42px] cursor-pointer items-center justify-center rounded-xl border transition-all focus-visible:outline-2 focus-visible:outline-[#246BFD] ${
+                accountMenuOpen || currentPage === 'profile'
+                  ? 'border-[#FF7900] bg-[#FF7900]/15 text-[#FF7900] shadow-[0_0_16px_-4px_rgba(255,121,0,0.45)]'
+                  : 'border-slate-700/70 bg-slate-800 text-slate-200 hover:border-[#FF7900] hover:text-[#FF7900] active:scale-95'
+              }`}
+            >
+              <UserRound className="h-4 w-4" />
+            </button>
+
+            {accountMenuOpen && (
+              <div
+                role="menu"
+                aria-label="Hesap menüsü"
+                className="absolute right-0 top-full z-50 mt-2 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-700/90 bg-[#111827] p-2 shadow-[0_24px_60px_rgba(0,0,0,0.85)]"
+              >
+                {user ? (
+                  <>
+                    <div className="border-b border-slate-800 px-3 py-2.5">
+                      <p className="truncate text-xs font-bold text-[#F5F7FA]">
+                        {user.displayName?.trim() ||
+                          user.email?.split('@')[0] ||
+                          'RMG Garaj Üyesi'}
+                      </p>
+                      {user.email && (
+                        <p className="mt-0.5 truncate text-[11px] text-[#94A3B8]">
+                          {user.email}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-1.5 flex flex-col gap-1">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleNavClick('profile')}
+                        className={`flex min-h-[44px] w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-semibold transition-colors ${
+                          currentPage === 'profile'
+                            ? 'bg-[#FF7900]/15 text-[#FF7900]'
+                            : 'text-[#F5F7FA] hover:bg-[#080B12] hover:text-[#FF7900]'
+                        }`}
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <UserRound className="h-4 w-4 shrink-0 text-[#FF7900]" />
+                          <span>Profilim</span>
+                        </span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-slate-500" />
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled
+                        aria-disabled="true"
+                        className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-[#94A3B8] opacity-75"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Settings className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span>Hesap Ayarları</span>
+                        </span>
+                        <span className="rounded-md border border-slate-700/80 bg-[#080B12] px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                          Yakında
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled
+                        aria-disabled="true"
+                        className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-[#94A3B8] opacity-75"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Heart className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span>Favorilerim</span>
+                        </span>
+                        <span className="rounded-md border border-slate-700/80 bg-[#080B12] px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                          Yakında
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        disabled
+                        aria-disabled="true"
+                        className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-medium text-[#94A3B8] opacity-75"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <Bell className="h-4 w-4 shrink-0 text-slate-500" />
+                          <span>Bildirimler</span>
+                        </span>
+                        <span className="rounded-md border border-slate-700/80 bg-[#080B12] px-2 py-0.5 text-[10px] font-semibold text-slate-400">
+                          Yakında
+                        </span>
+                      </button>
+                    </div>
+
+                    <div className="mt-1.5 border-t border-slate-800 pt-1.5">
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setAccountMenuOpen(false);
+                          void signOutUser();
+                        }}
+                        className="flex min-h-[44px] w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2 text-left text-xs font-semibold text-slate-200 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+                      >
+                        <LogOut className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span>Çıkış Yap</span>
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="p-1.5">
+                    <div className="flex items-start gap-2.5 rounded-xl border border-slate-800 bg-[#080B12] p-3">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FF7900]" />
+                      <div className="text-[11px] leading-relaxed text-[#94A3B8]">
+                        <p className="font-semibold text-[#F5F7FA]">
+                          RMG Garaj Hesabı
+                        </p>
+                        <p className="mt-1">
+                          Google hesabınızla giriş yaparak profil ve üyelik
+                          bilgilerinizi görüntüleyebilirsiniz.
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        void signInWithGoogle();
+                      }}
+                      className="mt-2 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#FF7900] px-4 py-2.5 text-xs font-bold text-[#080B12] transition-colors hover:bg-[#FF912E]"
+                    >
+                      <LogIn className="h-4 w-4 shrink-0" />
+                      <span>Google ile Giriş Yap</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <button
             type="button"
@@ -664,29 +896,114 @@ export function Navbar({
             })}
 
             {user ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  void signOutUser();
-                }}
-                className="mt-1.5 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-[#080B12] px-4 py-2.5 text-sm font-medium text-[#F5F7FA]"
-              >
-                <LogOut className="h-4 w-4 text-[#94A3B8]" />
-                <span>Çıkış Yap ({user.email})</span>
-              </button>
+              <div className="mt-2 flex flex-col gap-2 border-t border-slate-800/80 pt-3">
+                <button
+                  type="button"
+                  onClick={() => handleNavClick('profile')}
+                  className={`flex min-h-[44px] w-full cursor-pointer items-center justify-between gap-2 rounded-lg border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                    currentPage === 'profile'
+                      ? 'border-[#FF7900]/70 bg-[#FF7900]/15 text-[#FF7900]'
+                      : 'border-slate-700 bg-[#080B12] text-[#F5F7FA] hover:border-[#FF7900]'
+                  }`}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    {user.photoURL && !avatarLoadFailed ? (
+                      <img
+                        src={user.photoURL}
+                        alt={user.displayName || user.email || 'Profil'}
+                        referrerPolicy="no-referrer"
+                        onError={() => setAvatarLoadFailed(true)}
+                        className="h-6 w-6 shrink-0 rounded-full border border-slate-600/80 object-cover"
+                      />
+                    ) : (
+                      <UserIcon className="h-4 w-4 shrink-0 text-[#FF7900]" />
+                    )}
+                    <span className="truncate">Profilim ve Hesabım</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 shrink-0" />
+                </button>
+
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#080B12]/60 px-4 py-2.5 text-sm font-medium text-[#94A3B8] opacity-75"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Settings className="h-4 w-4 shrink-0 text-slate-500" />
+                    <span>Hesap Ayarları</span>
+                  </span>
+                  <span className="rounded-md border border-slate-700/80 bg-[#111827] px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                    Yakında
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#080B12]/60 px-4 py-2.5 text-sm font-medium text-[#94A3B8] opacity-75"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Heart className="h-4 w-4 shrink-0 text-slate-500" />
+                    <span>Favorilerim</span>
+                  </span>
+                  <span className="rounded-md border border-slate-700/80 bg-[#111827] px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                    Yakında
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  className="flex min-h-[44px] w-full cursor-not-allowed items-center justify-between gap-2 rounded-lg border border-slate-800 bg-[#080B12]/60 px-4 py-2.5 text-sm font-medium text-[#94A3B8] opacity-75"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Bell className="h-4 w-4 shrink-0 text-slate-500" />
+                    <span>Bildirimler</span>
+                  </span>
+                  <span className="rounded-md border border-slate-700/80 bg-[#111827] px-2 py-0.5 text-[11px] font-semibold text-slate-400">
+                    Yakında
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    void signOutUser();
+                  }}
+                  className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-[#080B12] px-4 py-2.5 text-sm font-medium text-[#F5F7FA] transition-colors hover:border-rose-500/70 hover:text-rose-300"
+                >
+                  <LogOut className="h-4 w-4 shrink-0 text-[#94A3B8]" />
+                  <span className="truncate">
+                    Çıkış Yap{user.email ? ` (${user.email})` : ''}
+                  </span>
+                </button>
+              </div>
             ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileOpen(false);
-                  void signInWithGoogle();
-                }}
-                className="mt-1.5 flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#246BFD] px-4 py-2.5 text-sm font-semibold text-[#F5F7FA]"
-              >
-                <LogIn className="h-4 w-4" />
-                <span>Google ile Giriş Yap</span>
-              </button>
+              <div className="mt-2 flex flex-col gap-2 border-t border-slate-800/80 pt-3">
+                <div className="flex items-start gap-2.5 rounded-lg border border-slate-800 bg-[#080B12] p-3">
+                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FF7900]" />
+                  <p className="text-xs leading-relaxed text-[#94A3B8]">
+                    Google hesabınızla giriş yaparak profil ve üyelik
+                    bilgilerinizi görüntüleyebilirsiniz.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    void signInWithGoogle();
+                  }}
+                  className="flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-lg bg-[#246BFD] px-4 py-2.5 text-sm font-semibold text-[#F5F7FA]"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Google ile Giriş Yap</span>
+                </button>
+              </div>
             )}
           </nav>
         </div>

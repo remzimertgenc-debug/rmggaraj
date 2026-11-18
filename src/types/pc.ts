@@ -8,6 +8,7 @@ export type PageId =
   | 'catalog'
   | 'detail'
   | 'part-detail'
+  | 'profile'
   | 'terms'
   | 'privacy'
   | 'cookies'
