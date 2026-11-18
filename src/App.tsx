@@ -51,6 +51,9 @@ const PartDetailPage = lazyWithRetry(() =>
 const LegalPage = lazyWithRetry(() =>
   import('./components/LegalPage').then((m) => ({ default: m.LegalPage }))
 );
+const ProfilePage = lazyWithRetry(() =>
+  import('./components/ProfilePage').then((m) => ({ default: m.ProfilePage }))
+);
 
 function PageLoadingFallback() {
   return (
@@ -101,6 +104,8 @@ const HASH_TO_PAGE: Record<string, PageId> = {
   '#donanim-kategorisi': 'catalog',
   '#sistem-detay': 'detail',
   '#urun-detay': 'part-detail',
+  '#hesabim': 'profile',
+  '#profil': 'profile',
   '#kullanim-kosullari': 'terms',
   '#gizlilik-politikasi': 'privacy',
   '#cerez-politikasi': 'cookies',
@@ -117,6 +122,7 @@ const PAGE_TO_HASH: Record<PageId, string> = {
   catalog: '#donanim-kategorisi',
   detail: '#sistem-detay',
   'part-detail': '#urun-detay',
+  profile: '#hesabim',
   terms: '#kullanim-kosullari',
   privacy: '#gizlilik-politikasi',
   cookies: '#cerez-politikasi',
@@ -133,6 +139,7 @@ const BACK_PAGE_LABELS: Record<PageId, string> = {
   catalog: 'Kategori Listesine Dön',
   detail: 'Sistem Detayına Dön',
   'part-detail': 'Geri Dön',
+  profile: 'Hesabıma Dön',
   terms: 'Ana Sayfaya Dön',
   privacy: 'Ana Sayfaya Dön',
   cookies: 'Ana Sayfaya Dön',
@@ -510,6 +517,10 @@ export default function App() {
               onBuildWithPart={handleBuildWithPart}
               onInspectBuild={handleOpenSystemDetail}
             />
+          )}
+
+          {currentPage === 'profile' && (
+            <ProfilePage onNavigate={navigateTo} />
           )}
 
           {(currentPage === 'terms' ||
