@@ -456,10 +456,12 @@ export function logSafeDatabaseDiagnostic(summary: DatabaseDiagnosticSummary): v
 }
 
 export function isProductionEnvironment(): boolean {
-  return (
-    process.env.NODE_ENV === 'production' ||
-    process.env.VERCEL_ENV === 'production'
-  );
+  // Vercel Preview deployments also use NODE_ENV=production.
+  // Prefer VERCEL_ENV when available to distinguish Preview from Production.
+  if (process.env.VERCEL_ENV) {
+    return process.env.VERCEL_ENV === 'production';
+  }
+  return process.env.NODE_ENV === 'production';
 }
 
 export function shouldDisallowMemoryFallback(): boolean {
