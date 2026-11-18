@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "functions": {
+    "api/[...route].ts": {
+      "includeFiles": "{firebase-applet-config.json,server/data/userListings.json}",
+      "maxDuration": 10
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/((?!api/|api$).*)",
+      "destination": "/index.html"
+    }
+  ]
+}
