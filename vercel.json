@@ -3,12 +3,20 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/*.ts": {
+    "api/index.ts": {
       "includeFiles": "{firebase-applet-config.json,server/data/userListings.json}",
       "maxDuration": 10
     }
   },
   "rewrites": [
+    {
+      "source": "/api",
+      "destination": "/api/index?__vercel_path="
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/index?__vercel_path=$1"
+    },
     {
       "source": "/((?!api/|api$).*)",
       "destination": "/index.html"
